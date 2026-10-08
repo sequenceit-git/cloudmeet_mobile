@@ -1,4 +1,4 @@
-import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
+import { NativeModules, NativeEventEmitter, DeviceEventEmitter, Platform } from 'react-native';
 
 const { PictureInPictureModule } = NativeModules;
 
@@ -112,23 +112,47 @@ export function prepareScreenShare(starting: boolean): void {
  * Returns an unsubscribe callback.
  */
 export function addPipListener(callback: (isInPip: boolean) => void): () => void {
-  if (Platform.OS !== 'android' || !PictureInPictureModule) {
+  if (Platform.OS !== 'android') {
     return () => {};
   }
 
+  const subscriptions: Array<{ remove: () => void }> = [];
+
+  const handleEvent = (data: { isInPictureInPictureMode?: boolean; inPictureInPictureMode?: boolean } | boolean) => {
+    let inPip = false;
+    if (typeof data === 'boolean') {
+      inPip = data;
+    } else if (data && typeof data === 'object') {
+      inPip = Boolean(data.isInPictureInPictureMode ?? data.inPictureInPictureMode);
+    }
+    if (__DEV__) {
+      console.log('[PiP] addPipListener received event:', inPip);
+    }
+    callback(inPip);
+  };
+
   try {
-    const emitter = new NativeEventEmitter(PictureInPictureModule);
-    const subscription = emitter.addListener(
-      'onPipModeChanged',
-      (data: { isInPictureInPictureMode: boolean }) => {
-        callback(Boolean(data?.isInPictureInPictureMode));
-      }
-    );
-    return () => {
-      subscription.remove();
-    };
+    const devSub = DeviceEventEmitter.addListener('onPipModeChanged', handleEvent);
+    subscriptions.push(devSub);
   } catch (err) {
-    console.warn('[PiP] addPipListener error:', err);
-    return () => {};
+    console.warn('[PiP] DeviceEventEmitter listener error:', err);
   }
+
+  if (PictureInPictureModule) {
+    try {
+      const emitter = new NativeEventEmitter(PictureInPictureModule);
+      const nativeSub = emitter.addListener('onPipModeChanged', handleEvent);
+      subscriptions.push(nativeSub);
+    } catch {
+      // Ignore if PictureInPictureModule is not a separate EventEmitter
+    }
+  }
+
+  return () => {
+    subscriptions.forEach(sub => {
+      try {
+        sub.remove();
+      } catch {}
+    });
+  };
 }

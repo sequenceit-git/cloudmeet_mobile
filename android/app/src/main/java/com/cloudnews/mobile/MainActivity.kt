@@ -155,6 +155,16 @@ class MainActivity : ReactActivity() {
       val inPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) isInPictureInPictureMode else false
       Log.d(TAG, "[ON_PAUSE] taskId=$taskId, instance=${System.identityHashCode(this)}, inPip=$inPip")
       super.onPause()
+      if (inPip) {
+          // React Native by default pauses JS execution & timers on onHostPause().
+          // When in Picture-in-Picture mode, the Activity is still visible to the user.
+          // We resume the React host so JS timers (call duration), UI updates, and LiveKit tracks continue running smoothly.
+          try {
+              reactActivityDelegate.onResume()
+          } catch (t: Throwable) {
+              Log.e(TAG, "[ON_PAUSE_RESUME_PIP_FAILED] ${t.message}")
+          }
+      }
   }
 
   /**
@@ -212,6 +222,13 @@ class MainActivity : ReactActivity() {
           TAG,
           "[ON_PIP_MODE_CHANGED] taskId=$taskId, instance=${System.identityHashCode(this)}, isInPictureInPictureMode=$isInPictureInPictureMode"
       )
+      if (isInPictureInPictureMode) {
+          try {
+              reactActivityDelegate.onResume()
+          } catch (t: Throwable) {
+              Log.e(TAG, "[PIP_RESUME_FAILED] ${t.message}")
+          }
+      }
       PictureInPictureModule.onModeChanged(this, isInPictureInPictureMode)
   }
 

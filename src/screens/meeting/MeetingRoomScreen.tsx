@@ -117,16 +117,16 @@ export const MeetingRoomContent: React.FC<{
 }) => {
   const insets = useSafeAreaInsets();
   const initialWindow = Dimensions.get('window');
-  const [isNativePip, setIsNativePip] = useState(false);
+  const [isNativePipState, setIsNativePipState] = useState(false);
 
   useEffect(() => {
     isInPipMode().then(inPip => {
-      setIsNativePip(inPip);
+      setIsNativePipState(inPip);
     }).catch(() => {});
 
     return addPipListener(inPip => {
       if (__DEV__) console.log('[PiP] Native Picture-in-Picture state changed:', inPip);
-      setIsNativePip(inPip);
+      setIsNativePipState(inPip);
     });
   }, []);
 
@@ -136,6 +136,13 @@ export const MeetingRoomContent: React.FC<{
   });
   const windowWidth = frame.width;
   const windowHeight = frame.height;
+
+  // Dual-layer PiP detection:
+  // 1. Explicit native event bridge (addPipListener & isInPipMode)
+  // 2. Window dimension heuristic: in Android PiP mode, window width is typically 150-280dp
+  //    and height is 250-450dp, whereas any phone in normal full-screen mode has width >= 320dp and height >= 520dp.
+  const isPipDimensions = frame.width > 0 && frame.width < 320 && frame.height < 520;
+  const isNativePip = isNativePipState || isPipDimensions;
 
   const applyFrameSize = useCallback((width: number, height: number) => {
     if (width <= 0 || height <= 0) return;
@@ -162,6 +169,13 @@ export const MeetingRoomContent: React.FC<{
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next === 'background' || next === 'inactive') {
         suppressMeetingChrome();
+        isInPipMode().then(inPip => {
+          if (inPip) setIsNativePipState(true);
+        }).catch(() => {});
+      } else if (next === 'active') {
+        isInPipMode().then(inPip => {
+          setIsNativePipState(inPip);
+        }).catch(() => {});
       }
     });
     return () => sub.remove();
@@ -191,9 +205,28 @@ export const MeetingRoomContent: React.FC<{
   });
 
   const [callDuration, setCallDuration] = useState(0);
+  const callStartTimeRef = useRef(Date.now());
+
   useEffect(() => {
-    const timer = setInterval(() => setCallDuration(prev => prev + 1), 1000);
-    return () => clearInterval(timer);
+    // Wall-clock synced timer: calculates real elapsed seconds without pausing or drift in background/PiP
+    const updateDuration = () => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - callStartTimeRef.current) / 1000));
+      setCallDuration(elapsed);
+    };
+
+    updateDuration();
+    const timer = setInterval(updateDuration, 1000);
+
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active' || nextState === 'background' || nextState === 'inactive') {
+        updateDuration();
+      }
+    });
+
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
   }, []);
 
   // Audio Device routing hook
@@ -960,7 +993,7 @@ export const MeetingRoomContent: React.FC<{
       )}
 
       {/* --- DYNAMIC PARTICIPANTS / SCREEN SHARE VIEW --- */}
-      {!isMinimized && (
+      {(!isMinimized || isNativePip) && (
         <MeetingStageView
           isFullScreen={isFullScreen}
           isNativePip={isNativePip}

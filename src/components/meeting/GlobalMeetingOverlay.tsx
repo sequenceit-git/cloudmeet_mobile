@@ -15,6 +15,7 @@ import { MeetingRoomContent } from '../../screens/meeting/MeetingRoomScreen';
 import { FloatingPiPView } from './FloatingPiPView';
 import { endMeeting as endMeetingApi, leaveMeeting as leaveMeetingApi } from '../../services/api';
 import storage from '../../services/storage';
+import { isInPipMode, addPipListener } from '../../utils/pip';
 
 // Ensure LiveKit WebRTC globals are ready
 initLiveKit();
@@ -60,8 +61,14 @@ export const GlobalMeetingOverlay: React.FC = () => {
   const [permissionsChecked, setPermissionsChecked] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState(true);
   const [hasAudioPermission, setHasAudioPermission] = useState(true);
+  const [isNativePip, setIsNativePip] = useState(false);
   const activeMeetingKeyRef = useRef<string | null>(null);
   const isUserLeavingRef = useRef(false);
+
+  useEffect(() => {
+    isInPipMode().then(setIsNativePip).catch(() => {});
+    return addPipListener(setIsNativePip);
+  }, []);
 
   // Audio session and permission initialization per unique meeting session
   useEffect(() => {
@@ -186,12 +193,12 @@ export const GlobalMeetingOverlay: React.FC = () => {
           style={[
             StyleSheet.absoluteFillObject,
             {
-              display: isMinimized ? 'none' : 'flex',
-              zIndex: isMinimized ? 0 : 9999,
+              display: isMinimized && !isNativePip ? 'none' : 'flex',
+              zIndex: isMinimized && !isNativePip ? 0 : 9999,
               backgroundColor: '#050B14',
             },
           ]}
-          pointerEvents={isMinimized ? 'none' : 'auto'}
+          pointerEvents={isMinimized && !isNativePip ? 'none' : 'auto'}
         >
           <MeetingRoomContent
             roomName={activeMeeting.roomName}
@@ -202,7 +209,7 @@ export const GlobalMeetingOverlay: React.FC = () => {
             hostSessionToken={activeMeeting.hostSessionToken}
             onLeave={endMeeting}
             onMinimize={minimizeMeeting}
-            isMinimized={isMinimized}
+            isMinimized={isMinimized && !isNativePip}
             muteAudioParam={activeMeeting.muteAudio}
             muteVideoParam={activeMeeting.muteVideo}
             hasAudioPermission={hasAudioPermission}
@@ -211,7 +218,7 @@ export const GlobalMeetingOverlay: React.FC = () => {
         </View>
 
         {/* Floating PiP View when minimized in-app (not in native OS PiP) */}
-        {isMinimized && (
+        {isMinimized && !isNativePip && (
           <FloatingPiPView
             roomName={activeMeeting.roomName}
             meetingTitle={activeMeeting.meetingTitle}
