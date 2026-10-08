@@ -24,7 +24,6 @@ export const NativePipActionBar: React.FC<NativePipActionBarProps> = ({
 }) => {
   return (
     <Animated.View
-      nativeID="meeting-chrome"
       pointerEvents={showPipActions ? 'box-none' : 'none'}
       style={[
         styles.pipActionBar,

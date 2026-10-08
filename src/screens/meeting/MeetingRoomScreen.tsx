@@ -42,7 +42,7 @@ import storage, { StorageKeys } from '../../services/storage';
 import { useMeeting } from '../../context/MeetingContext';
 import { startMeetingForegroundService, stopMeetingForegroundService } from '../../utils/wakeLock';
 import { startAudioSession, stopAudioSession } from '../../services/livekit';
-import { addPipListener, suppressMeetingChrome } from '../../utils/pip';
+import { addPipListener, isInPipMode, suppressMeetingChrome } from '../../utils/pip';
 import { getInitials, getAvatarTextStyle } from '../../utils/helpers';
 import { styles } from './meetingRoomStyles';
 import { checkIsParticipantHost, formatMeetingCode, formatTime } from './meetingRoomUtils';
@@ -117,22 +117,32 @@ export const MeetingRoomContent: React.FC<{
 }) => {
   const insets = useSafeAreaInsets();
   const initialWindow = Dimensions.get('window');
+  const [isNativePip, setIsNativePip] = useState(false);
+
+  useEffect(() => {
+    isInPipMode().then(inPip => {
+      setIsNativePip(inPip);
+    }).catch(() => {});
+
+    return addPipListener(inPip => {
+      if (__DEV__) console.log('[PiP] Native Picture-in-Picture state changed:', inPip);
+      setIsNativePip(inPip);
+    });
+  }, []);
+
   const [frame, setFrame] = useState({
     width: initialWindow.width,
     height: initialWindow.height,
-    compact: false,
   });
   const windowWidth = frame.width;
   const windowHeight = frame.height;
-  const isNativePip = frame.compact;
 
   const applyFrameSize = useCallback((width: number, height: number) => {
     if (width <= 0 || height <= 0) return;
-    const compact = height < 700 || width < 400;
     setFrame(prev => (
-      prev.width === width && prev.height === height && prev.compact === compact
+      prev.width === width && prev.height === height
         ? prev
-        : { width, height, compact }
+        : { width, height }
     ));
   }, []);
 
@@ -180,12 +190,6 @@ export const MeetingRoomContent: React.FC<{
     hostSessionToken,
   });
 
-  useEffect(() => {
-    return addPipListener(inPip => {
-      if (__DEV__) console.log('[PiP] Native Picture-in-Picture state changed:', inPip);
-    });
-  }, []);
-
   const [callDuration, setCallDuration] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setCallDuration(prev => prev + 1), 1000);
@@ -230,7 +234,17 @@ export const MeetingRoomContent: React.FC<{
       stopAudioSession();
       stopMeetingForegroundService();
     };
-  }, [fetchAudioOutputs, meetingTitle, roomName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (meetingTitle || roomName) {
+      startMeetingForegroundService(
+        meetingTitle || roomName || 'CloudNews Meeting',
+        '通话中 · 麦克风与音频已保持开启 / Meeting active · Mic & audio running'
+      );
+    }
+  }, [meetingTitle, roomName]);
 
   const [isMicMuted, setIsMicMuted] = useState(Boolean(muteAudioParam || !hasAudioPermission));
   const isMicMutedRef = useRef(isMicMuted);
@@ -368,9 +382,6 @@ export const MeetingRoomContent: React.FC<{
         if (localParticipant && room?.state === ConnectionState.Connected) {
           if (!userWantsMicMutedRef.current && !localParticipant.isMicrophoneEnabled) {
             localParticipant.setMicrophoneEnabled(true).catch(() => {});
-          }
-          if (!userWantsCameraOffRef.current && !localParticipant.isCameraEnabled) {
-            localParticipant.setCameraEnabled(true).catch(() => {});
           }
         }
       } else if (nextAppState === 'active') {
@@ -949,34 +960,36 @@ export const MeetingRoomContent: React.FC<{
       )}
 
       {/* --- DYNAMIC PARTICIPANTS / SCREEN SHARE VIEW --- */}
-      <MeetingStageView
-        isFullScreen={isFullScreen}
-        isNativePip={isNativePip}
-        insets={insets}
-        activeScreenShare={activeScreenShare}
-        isGridMode={isGridMode}
-        showControls={showControls}
-        isScreenSharing={isScreenSharing}
-        localParticipant={localParticipant}
-        activeMeetingParticipants={activeMeetingParticipants}
-        cameraFacing={cameraFacing}
-        pinnedParticipantIdentity={pinnedParticipantIdentity}
-        gridLayout={gridLayout}
-        onToggleLayout={handleToggleLayout}
-        onAudioPress={() => {
-          resetControlsTimer();
-          fetchAudioOutputs(false);
-          setIsAudioModalOpen(true);
-        }}
-        renderCurrentAudioIcon={renderCurrentAudioIcon}
-        onScreenTap={handleScreenTap}
-        onToggleScreenShare={() => {
-          if (isScreenShareActionInFlight.current || screenShareLifecycleRef.current !== 'idle') return;
-          handleToggleScreenShare();
-        }}
-        onSwitchCamera={handleSwitchCamera}
-        onParticipantPress={handleParticipantPress}
-      />
+      {!isMinimized && (
+        <MeetingStageView
+          isFullScreen={isFullScreen}
+          isNativePip={isNativePip}
+          insets={insets}
+          activeScreenShare={activeScreenShare}
+          isGridMode={isGridMode}
+          showControls={showControls}
+          isScreenSharing={isScreenSharing}
+          localParticipant={localParticipant}
+          activeMeetingParticipants={activeMeetingParticipants}
+          cameraFacing={cameraFacing}
+          pinnedParticipantIdentity={pinnedParticipantIdentity}
+          gridLayout={gridLayout}
+          onToggleLayout={handleToggleLayout}
+          onAudioPress={() => {
+            resetControlsTimer();
+            fetchAudioOutputs(false);
+            setIsAudioModalOpen(true);
+          }}
+          renderCurrentAudioIcon={renderCurrentAudioIcon}
+          onScreenTap={handleScreenTap}
+          onToggleScreenShare={() => {
+            if (isScreenShareActionInFlight.current || screenShareLifecycleRef.current !== 'idle') return;
+            handleToggleScreenShare();
+          }}
+          onSwitchCamera={handleSwitchCamera}
+          onParticipantPress={handleParticipantPress}
+        />
+      )}
 
       {/* --- CHAT DRAWER --- */}
       {!isNativePip && (

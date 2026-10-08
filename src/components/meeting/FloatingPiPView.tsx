@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -71,7 +71,29 @@ export const FloatingPiPView: React.FC<FloatingPiPViewProps> = ({
 
   const activeParticipant = activeTrack?.participant || participants[0] || localParticipant;
   const participantName = activeParticipant?.name || activeParticipant?.identity || meetingTitle || roomName;
-  const isMicMuted = activeParticipant ? !activeParticipant.isMicrophoneEnabled : true;
+
+  const [isMicMuted, setIsMicMuted] = useState(
+    activeParticipant ? !activeParticipant.isMicrophoneEnabled : true
+  );
+
+  useEffect(() => {
+    if (!activeParticipant) return;
+    const updateAudioState = () => {
+      setIsMicMuted(!activeParticipant.isMicrophoneEnabled);
+    };
+    updateAudioState();
+    activeParticipant.on('trackPublished', updateAudioState);
+    activeParticipant.on('trackUnpublished', updateAudioState);
+    activeParticipant.on('trackMuted', updateAudioState);
+    activeParticipant.on('trackUnmuted', updateAudioState);
+
+    return () => {
+      activeParticipant.off('trackPublished', updateAudioState);
+      activeParticipant.off('trackUnpublished', updateAudioState);
+      activeParticipant.off('trackMuted', updateAudioState);
+      activeParticipant.off('trackUnmuted', updateAudioState);
+    };
+  }, [activeParticipant]);
 
   // Initial position: top-right corner, below safe area
   const initialX = SCREEN_WIDTH - PIP_WIDTH - 16;
@@ -146,7 +168,8 @@ export const FloatingPiPView: React.FC<FloatingPiPViewProps> = ({
             trackRef={activeTrack}
             style={styles.pipVideo}
             objectFit="cover"
-            mirror={activeTrack.participant.isLocal}
+            mirror={Boolean(activeTrack.participant.isLocal)}
+            zOrder={1}
           />
         ) : (
           <View style={styles.pipAvatarContainer}>

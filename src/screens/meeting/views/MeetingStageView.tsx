@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { EdgeInsets } from 'react-native-safe-area-context';
 import { Participant, TrackPublication } from 'livekit-client';
@@ -59,6 +59,23 @@ export const MeetingStageView: React.FC<MeetingStageViewProps> = ({
   onSwitchCamera,
   onParticipantPress,
 }) => {
+  // When in native PiP mode, focus on the primary participant / speaker as a full card
+  const primaryPipParticipant = useMemo(() => {
+    if (pinnedParticipantIdentity) {
+      const pinned = activeMeetingParticipants.find(p => p.identity === pinnedParticipantIdentity);
+      if (pinned) return pinned;
+    }
+    const remoteWithVideo = activeMeetingParticipants.find(p => !p.isLocal && p.isCameraEnabled);
+    if (remoteWithVideo) return remoteWithVideo;
+
+    const remoteSpeaking = activeMeetingParticipants.find(p => !p.isLocal && p.isSpeaking);
+    if (remoteSpeaking) return remoteSpeaking;
+
+    const anyRemote = activeMeetingParticipants.find(p => !p.isLocal);
+    if (anyRemote) return anyRemote;
+
+    return activeMeetingParticipants[0] || (localParticipant as any);
+  }, [activeMeetingParticipants, pinnedParticipantIdentity, localParticipant]);
   return (
     <View
       style={[
@@ -94,6 +111,24 @@ export const MeetingStageView: React.FC<MeetingStageViewProps> = ({
             />
           </View>
         </View>
+      ) : isNativePip && primaryPipParticipant ? (
+        <ParticipantCard
+          key={`pip-${primaryPipParticipant.identity}`}
+          participant={primaryPipParticipant}
+          isLocal={Boolean(localParticipant && primaryPipParticipant.identity === localParticipant.identity)}
+          cameraFacing={cameraFacing}
+          isSingleOrFullScreen={true}
+          showControls={false}
+          compactPip={true}
+          isGridMode={false}
+          onToggleLayout={onToggleLayout}
+          onAudioPress={onAudioPress}
+          renderAudioIcon={renderCurrentAudioIcon}
+          insets={insets}
+          onSwitchCamera={onSwitchCamera}
+          onPress={onScreenTap}
+          style={styles.fullScreenCard}
+        />
       ) : !isGridMode && activeMeetingParticipants.length === 1 ? (
         <ParticipantCard
           key={`solo-${activeMeetingParticipants[0]?.identity || 'local'}`}

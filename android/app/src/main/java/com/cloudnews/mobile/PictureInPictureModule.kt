@@ -107,7 +107,7 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
                 val builder = PictureInPictureParams.Builder()
                     .setAspectRatio(Rational(ratioW, ratioH))
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    builder.setAutoEnterEnabled(false)
+                    builder.setAutoEnterEnabled(canEnterPip())
                     builder.setSeamlessResizeEnabled(true)
                 }
                 val entered = activity.enterPictureInPictureMode(builder.build())
@@ -137,12 +137,24 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
                 Log.w(TAG, "orientation: ${e.message}")
             }
 
-            if (!canEnterPip()) return
+            if (!canEnterPip()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        val builder = PictureInPictureParams.Builder()
+                            .setAutoEnterEnabled(false)
+                        activity.setPictureInPictureParams(builder.build())
+                    } catch (e: Exception) {
+                        Log.w(TAG, "disable autoEnter: ${e.message}")
+                    }
+                }
+                return
+            }
+
             try {
                 val builder = PictureInPictureParams.Builder()
                     .setAspectRatio(Rational(9, 16))
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    builder.setAutoEnterEnabled(false)
+                    builder.setAutoEnterEnabled(true)
                     builder.setSeamlessResizeEnabled(true)
                 }
                 activity.setPictureInPictureParams(builder.build())

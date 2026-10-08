@@ -153,14 +153,7 @@ class MainActivity : ReactActivity() {
 
   override fun onPause() {
       val inPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) isInPictureInPictureMode else false
-      val canPip = PictureInPictureModule.canEnterPip()
-      val hinted = System.currentTimeMillis() - userLeaveHintAtMs < 1500L
-      Log.d(TAG, "[ON_PAUSE] taskId=$taskId, instance=${System.identityHashCode(this)}, inPip=$inPip, canEnterPip=$canPip, hinted=$hinted")
-      // Home already entered PiP from onUserLeaveHint. A second enter here is
-      // what Samsung reports as PiP true then immediate false (call looks paused).
-      if (!hinted && !inPip && canPip) {
-          PictureInPictureModule.enterPipMode(this)
-      }
+      Log.d(TAG, "[ON_PAUSE] taskId=$taskId, instance=${System.identityHashCode(this)}, inPip=$inPip")
       super.onPause()
   }
 
@@ -187,8 +180,8 @@ class MainActivity : ReactActivity() {
 
   /**
    * Called when the user presses Home or leaves the app.
-   * Enter PiP here (not via auto-enter). Auto-enter races JS layout and
-   * closes the window, which pauses the meeting.
+   * On Android 12+ (API 31+), setAutoEnterEnabled(true) manages the PiP transition seamlessly.
+   * On Android 8.0 - 11 (< API 31), enterPipMode is called explicitly here.
    */
   override fun onUserLeaveHint() {
       userLeaveHintAtMs = System.currentTimeMillis()
@@ -198,7 +191,7 @@ class MainActivity : ReactActivity() {
           TAG,
           "[ON_USER_LEAVE_HINT] taskId=$taskId, instance=${System.identityHashCode(this)}, canEnterPip=$canPip, alreadyInPip=$alreadyInPip"
       )
-      if (!alreadyInPip && canPip) {
+      if (!alreadyInPip && canPip && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
           PictureInPictureModule.suppressChrome(this)
           PictureInPictureModule.enterPipMode(this)
       }
