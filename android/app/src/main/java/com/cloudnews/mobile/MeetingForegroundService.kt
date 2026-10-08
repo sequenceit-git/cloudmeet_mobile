@@ -174,7 +174,11 @@ class MeetingForegroundService : Service() {
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                val isScreenShareActive = (title.contains("共享屏幕") || subtitle.contains("共享屏幕") || subtitle.contains("Screen sharing"))
+                if (isScreenShareActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                }
                 startForeground(NOTIFICATION_ID, notification, type)
             } else {
                 startForeground(NOTIFICATION_ID, notification)
@@ -183,7 +187,11 @@ class MeetingForegroundService : Service() {
             e.printStackTrace()
             // Fallback for devices with restrictive foreground service policies
             try {
-                startForeground(NOTIFICATION_ID, notification)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+                } else {
+                    startForeground(NOTIFICATION_ID, notification)
+                }
             } catch (fallbackErr: Exception) {
                 fallbackErr.printStackTrace()
             }

@@ -184,17 +184,17 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
     fun removeListeners(count: Int) {}
 
     private fun sendPipEvent(isInPipMode: Boolean) {
-        try {
-            if (reactApplicationContext.hasActiveReactInstance()) {
+        reactApplicationContext.runOnJSQueueThread {
+            try {
                 val params = Arguments.createMap().apply {
                     putBoolean("isInPictureInPictureMode", isInPipMode)
                 }
                 reactApplicationContext
                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                     .emit(EVENT_PIP_MODE_CHANGED, params)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 }

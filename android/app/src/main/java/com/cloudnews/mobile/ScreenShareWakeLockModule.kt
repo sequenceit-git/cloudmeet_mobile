@@ -13,6 +13,7 @@ import com.facebook.react.bridge.ReactMethod
 
 class ScreenShareWakeLockModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
     private var wakeLock: PowerManager.WakeLock? = null
+    private var partialWakeLock: PowerManager.WakeLock? = null
 
     override fun getName(): String = "ScreenShareWakeLock"
 
@@ -35,6 +36,17 @@ class ScreenShareWakeLockModule(reactContext: ReactApplicationContext) : ReactCo
                 wakeLock?.acquire(4 * 60 * 60 * 1000L) // 4 hours safe maximum duration
             }
 
+            if (partialWakeLock == null && powerManager != null) {
+                partialWakeLock = powerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "CloudNews:ScreenSharePartialWakeLock"
+                )
+                partialWakeLock?.setReferenceCounted(false)
+            }
+            if (partialWakeLock?.isHeld != true) {
+                partialWakeLock?.acquire(4 * 60 * 60 * 1000L)
+            }
+
             // Update foreground service notification to Zoom-style screen sharing notification
             MeetingForegroundService.startService(
                 reactApplicationContext,
@@ -53,7 +65,7 @@ class ScreenShareWakeLockModule(reactContext: ReactApplicationContext) : ReactCo
 
     @ReactMethod
     fun releaseWakeLock() {
-        android.util.Log.i("ScreenCapture-Diag", "[WakeLock] ScreenShareWakeLockModule.releaseWakeLock() - releasing wake lock only")
+        android.util.Log.i("ScreenCapture-Diag", "[WakeLock] ScreenShareWakeLockModule.releaseWakeLock() - releasing wake locks and restoring meeting notification")
         try {
             currentActivity?.runOnUiThread {
                 try {
@@ -69,6 +81,23 @@ class ScreenShareWakeLockModule(reactContext: ReactApplicationContext) : ReactCo
             if (wakeLock?.isHeld == true) {
                 wakeLock?.release()
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        try {
+            if (partialWakeLock?.isHeld == true) {
+                partialWakeLock?.release()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        try {
+            // Restore default meeting foreground notification
+            MeetingForegroundService.startService(
+                reactApplicationContext,
+                "云讯会议 / CloudNews Meeting",
+                "通话中 · 麦克风与音频已保持开启 / Meeting active · Mic & audio running"
+            )
         } catch (e: Exception) {
             e.printStackTrace()
         }

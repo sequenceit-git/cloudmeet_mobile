@@ -6,6 +6,8 @@ import {
   Platform,
   PermissionsAndroid,
   Alert,
+  useWindowDimensions,
+  AppState,
 } from 'react-native';
 import { LiveKitRoom } from '@livekit/react-native';
 import { DisconnectReason } from 'livekit-client';
@@ -13,6 +15,7 @@ import { useMeeting } from '../../context/MeetingContext';
 import { initLiveKit, startAudioSession, stopAudioSession } from '../../services/livekit';
 import { MeetingRoomContent } from '../../screens/MeetingRoomScreen';
 import { FloatingPiPView } from './FloatingPiPView';
+import { addPipListener, isInPipMode } from '../../utils/pip';
 import { endMeeting as endMeetingApi, leaveMeeting as leaveMeetingApi } from '../../services/api';
 import storage from '../../services/storage';
 
@@ -60,8 +63,34 @@ export const GlobalMeetingOverlay: React.FC = () => {
   const [permissionsChecked, setPermissionsChecked] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState(true);
   const [hasAudioPermission, setHasAudioPermission] = useState(true);
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const [isNativePipState, setIsNativePipState] = useState(false);
+  const isWindowPip = windowWidth < 300 || windowHeight < 400;
+  const isNativePip = isNativePipState || isWindowPip;
   const activeMeetingKeyRef = useRef<string | null>(null);
   const isUserLeavingRef = useRef(false);
+
+  // Subscribe to native OS Picture-in-Picture mode changes and AppState transitions
+  useEffect(() => {
+    const unsubscribe = addPipListener(inPip => {
+      setIsNativePipState(inPip);
+    });
+
+    isInPipMode().then(inMode => {
+      if (inMode) setIsNativePipState(true);
+    }).catch(() => {});
+
+    const appStateSub = AppState.addEventListener('change', () => {
+      isInPipMode().then(inMode => {
+        setIsNativePipState(inMode);
+      }).catch(() => {});
+    });
+
+    return () => {
+      unsubscribe();
+      appStateSub.remove();
+    };
+  }, []);
 
   // Audio session and permission initialization per unique meeting session
   useEffect(() => {
@@ -186,12 +215,12 @@ export const GlobalMeetingOverlay: React.FC = () => {
           style={[
             StyleSheet.absoluteFillObject,
             {
-              display: isMinimized ? 'none' : 'flex',
-              zIndex: isMinimized ? 0 : 9999,
+              display: (isMinimized && !isNativePip) ? 'none' : 'flex',
+              zIndex: (isMinimized && !isNativePip) ? 0 : 9999,
               backgroundColor: '#050B14',
             },
           ]}
-          pointerEvents={isMinimized ? 'none' : 'auto'}
+          pointerEvents={(isMinimized && !isNativePip) ? 'none' : 'auto'}
         >
           <MeetingRoomContent
             roomName={activeMeeting.roomName}
@@ -202,7 +231,7 @@ export const GlobalMeetingOverlay: React.FC = () => {
             hostSessionToken={activeMeeting.hostSessionToken}
             onLeave={endMeeting}
             onMinimize={minimizeMeeting}
-            isMinimized={isMinimized}
+            isMinimized={isMinimized && !isNativePip}
             muteAudioParam={activeMeeting.muteAudio}
             muteVideoParam={activeMeeting.muteVideo}
             hasAudioPermission={hasAudioPermission}
@@ -210,8 +239,8 @@ export const GlobalMeetingOverlay: React.FC = () => {
           />
         </View>
 
-        {/* Floating PiP View when minimized */}
-        {isMinimized && (
+        {/* Floating PiP View when minimized in-app (not in native OS PiP) */}
+        {isMinimized && !isNativePip && (
           <FloatingPiPView
             roomName={activeMeeting.roomName}
             meetingTitle={activeMeeting.meetingTitle}

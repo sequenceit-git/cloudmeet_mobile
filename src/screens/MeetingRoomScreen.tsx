@@ -20,6 +20,7 @@ import {
   facingModeFromLocalTrack,
   DisconnectReason,
   TrackPublishOptions,
+  ScreenShareCaptureOptions,
   LocalTrackPublication,
   RemoteParticipant,
   RemoteTrack,
@@ -131,7 +132,7 @@ import {
 } from '../utils/wakeLock';
 import { startAudioSession, stopAudioSession } from '../services/livekit';
 import { MediaPreviewModal, MediaPreviewItem, sanitizeMediaUrl } from '../components/meeting/MediaPreviewModal';
-import { setPipConfig, prepareScreenShare, addPipListener } from '../utils/pip';
+import { setPipConfig, prepareScreenShare, addPipListener, isInPipMode } from '../utils/pip';
 
 // Safely resolve iOS-only ScreenCapturePickerView without crashing on Android
 const ScreenCapturePickerViewComponent: any = Platform.OS === 'ios'
@@ -1365,7 +1366,10 @@ export const MeetingRoomContent: React.FC<{
   }, [isHostParam, meetingCode, performHostHeartbeat]);
 
   const { activeMeeting, isReconnectingUI, manualReconnect } = useMeeting();
-  const [isNativePip, setIsNativePip] = useState<boolean>(false);
+  const [isNativePipState, setIsNativePipState] = useState<boolean>(false);
+  // Physical certainty: A smartphone screen width is always >= 320dp. Any window < 300dp is guaranteed to be an Android Picture-in-Picture window.
+  const isWindowPip = windowWidth < 300 || windowHeight < 400;
+  const isNativePip = isNativePipState || isWindowPip;
   const isUserLeavingRef = useRef<boolean>(false);
 
   // Subscribe to LiveKit room reconnection to re-sync local audio/video publish state if active
@@ -1394,14 +1398,27 @@ export const MeetingRoomContent: React.FC<{
     };
   }, [room]);
 
-  // Subscribe to native Android Picture-in-Picture mode changes
+  // Subscribe to native Android Picture-in-Picture mode changes and AppState transitions
   useEffect(() => {
     const unsubscribe = addPipListener(inPip => {
-      console.log('[PiP] Native Picture-in-Picture state changed:', inPip);
-      setIsNativePip(inPip);
+      if (__DEV__) console.log('[PiP] Native Picture-in-Picture state changed:', inPip);
+      setIsNativePipState(inPip);
     });
+
+    // Directly query native module on mount and AppState transitions for zero-lag sync
+    isInPipMode().then(inMode => {
+      if (inMode) setIsNativePipState(true);
+    }).catch(() => {});
+
+    const appStateSub = AppState.addEventListener('change', () => {
+      isInPipMode().then(inMode => {
+        setIsNativePipState(inMode);
+      }).catch(() => {});
+    });
+
     return () => {
       unsubscribe();
+      appStateSub.remove();
     };
   }, []);
 
@@ -1731,15 +1748,15 @@ export const MeetingRoomContent: React.FC<{
   }, [activeScreenShare]);
 
   // Synchronize Picture-in-Picture configuration with Android OS:
-  // - When meeting is minimized in-app (showing App's Home Screen), disable native PiP
+  // - While in a meeting (full screen or minimized in-app), allow OS PiP so minimizing the app preserves the floating window
   // - When broadcaster is actively sharing screen, disable native PiP so they can present 3rd-party apps
   // - When remote presentation is active or in normal meeting, enable native PiP
   useEffect(() => {
-    setPipConfig(!isMinimized, isLocalScreenSharing);
+    setPipConfig(true, isLocalScreenSharing);
     return () => {
       setPipConfig(false, false);
     };
-  }, [isMinimized, isLocalScreenSharing]);
+  }, [isLocalScreenSharing]);
 
   // Intercept hardware/system back button to minimize meeting in-app and return to the App's Home Screen
   useEffect(() => {
@@ -1837,7 +1854,7 @@ export const MeetingRoomContent: React.FC<{
       if (!enabled) {
         // System notification "Stop Sharing" or OS single-app stop fired externally
         prepareScreenShare(false);
-        setPipConfig(!isMinimized, false);
+        setPipConfig(true, false);
         releaseScreenShareWakeLock();
       }
     };
@@ -3980,9 +3997,17 @@ export const MeetingRoomContent: React.FC<{
               degradationPreference: publishOptions.degradationPreference,
             });
           }
+          const captureOptions: ScreenShareCaptureOptions = {
+            audio: false,
+            resolution: {
+              width: 1920,
+              height: 1080,
+              frameRate: profile.screenShareEncoding.maxFramerate || 20,
+            },
+          };
           pub = await room.localParticipant.setScreenShareEnabled(
             true,
-            undefined,
+            captureOptions,
             publishOptions
           );
           if (__DEV__) {
@@ -3990,6 +4015,13 @@ export const MeetingRoomContent: React.FC<{
               timestamp: new Date().toISOString(),
             });
             const localTrack = pub?.track;
+            if (localTrack?.mediaStreamTrack) {
+              try {
+                (localTrack.mediaStreamTrack as any).contentHint = 'detail';
+              } catch (hintErr) {
+                // ignore
+              }
+            }
             console.log('[ScreenShare-Diag:SCREEN_SHARE_TRACK_CREATED]', {
               timestamp: new Date().toISOString(),
               trackSid: pub?.trackSid,
@@ -4043,7 +4075,7 @@ export const MeetingRoomContent: React.FC<{
 
           isStartingScreenShareRef.current = false;
           prepareScreenShare(false);
-          setPipConfig(!isMinimized, false);
+          setPipConfig(true, false);
           setIsScreenSharing(false);
           releaseScreenShareWakeLock();
 
@@ -4073,7 +4105,7 @@ export const MeetingRoomContent: React.FC<{
 
         isStartingScreenShareRef.current = false;
         setIsScreenSharing(true);
-        setPipConfig(!isMinimized, true);
+        setPipConfig(true, true);
 
         // Stabilization delay to allow MediaProjection track and hardware encoder to produce initial keyframe smoothly
         await new Promise(resolve => setTimeout(resolve, 450));

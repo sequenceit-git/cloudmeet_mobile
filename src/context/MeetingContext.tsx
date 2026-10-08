@@ -9,6 +9,7 @@ import {
   stopMeetingForegroundService,
   releaseScreenShareWakeLock,
 } from '../utils/wakeLock';
+import { resolveLiveKitServerUrl } from '../config/env';
 
 export type ConnectionLifecycleState =
   | 'idle'
@@ -131,7 +132,7 @@ export const MeetingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     autoSubscribe: true,
     peerConnectionTimeout: 30000,
     maxRetries: 10,
-    websocketTimeout: 20000,
+    websocketTimeout: 30000,
   }), []);
 
   // Single Room Instance Owner: strictly keyed to the active meeting credentials
@@ -232,7 +233,8 @@ export const MeetingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const promise = (async () => {
       try {
-        await room.connect(activeMeeting.serverUrl, activeMeeting.token, connectOptions);
+        const livekitUrl = resolveLiveKitServerUrl(activeMeeting.serverUrl);
+        await room.connect(livekitUrl, activeMeeting.token, connectOptions);
         if (__DEV__) console.log(`[MeetingConnection] CONNECT_SUCCESS (${reason})`);
       } catch (err: any) {
         if (__DEV__) console.warn(`[MeetingConnection] CONNECT_FAILED (${reason}):`, err?.message || err);
@@ -413,18 +415,22 @@ export const MeetingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     isLeavingRef.current = false;
     setConnectionState('connecting');
     setIsReconnectingUI(false);
+    const sanitizedSession: MeetingSession = {
+      ...session,
+      serverUrl: resolveLiveKitServerUrl(session.serverUrl),
+    };
     setActiveMeeting(prev => {
       if (
         prev &&
-        prev.roomName === session.roomName &&
-        prev.token === session.token
+        prev.roomName === sanitizedSession.roomName &&
+        prev.token === sanitizedSession.token
       ) {
         return prev;
       }
-      return session;
+      return sanitizedSession;
     });
     setIsMinimized(false);
-    startMeetingForegroundService(session.meetingTitle || session.roomName);
+    startMeetingForegroundService(sanitizedSession.meetingTitle || sanitizedSession.roomName);
   }, []);
 
   const minimizeMeeting = useCallback(() => {

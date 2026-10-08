@@ -201,6 +201,16 @@ class MainActivity : ReactActivity() {
       PictureInPictureModule.notifyPipModeChanged(isInPictureInPictureMode)
   }
 
+  @Deprecated("Deprecated in Java")
+  override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+      super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+      Log.d(
+          TAG,
+          "[ON_PIP_MODE_CHANGED_1_ARG] taskId=$taskId, instance=${System.identityHashCode(this)}, isInPictureInPictureMode=$isInPictureInPictureMode"
+      )
+      PictureInPictureModule.notifyPipModeChanged(isInPictureInPictureMode)
+  }
+
   /**
     * Align the back button behavior with Android S
     * where moving root activities to background instead of finishing activities.
