@@ -377,10 +377,8 @@ export const MeetingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       if (nextAppState === 'background' || nextAppState === 'inactive') {
         isAppInBackgroundRef.current = true;
-        if (connectionState === 'connected') {
-          setConnectionState('background');
-        }
-        // Ensure meeting foreground service continues running
+        // Do not setState here. A render while Android is entering PiP
+        // cancels the mini window (PiP true, then immediate false).
         if (activeMeeting) {
           startMeetingForegroundService(activeMeeting.meetingTitle || activeMeeting.roomName);
         }

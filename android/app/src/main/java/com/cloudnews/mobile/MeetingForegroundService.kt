@@ -175,6 +175,9 @@ class MeetingForegroundService : Service() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                }
                 val isScreenShareActive = (title.contains("共享屏幕") || subtitle.contains("共享屏幕") || subtitle.contains("Screen sharing"))
                 if (isScreenShareActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION

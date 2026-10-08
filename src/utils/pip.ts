@@ -68,6 +68,17 @@ export function maximizeFromPip(): void {
  * When in meeting and screen share is OFF -> PiP is enabled & auto-enter is active.
  * When screen share is ON -> PiP is disabled so user can present other apps cleanly.
  */
+/** Hides meeting header/footer on the native layer only (no React re-render). */
+export function suppressMeetingChrome(): void {
+  if (Platform.OS === 'android' && PictureInPictureModule?.suppressMeetingChrome) {
+    try {
+      PictureInPictureModule.suppressMeetingChrome();
+    } catch (err) {
+      console.warn('[PiP] suppressMeetingChrome error:', err);
+    }
+  }
+}
+
 export function setPipConfig(inMeeting: boolean, isScreenSharing: boolean): void {
   if (Platform.OS === 'android' && PictureInPictureModule?.setPipConfig) {
     try {

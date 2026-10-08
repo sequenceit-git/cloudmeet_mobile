@@ -3,35 +3,23 @@ import * as Clipboard from 'expo-clipboard';
 import {
   Calendar,
   CalendarPlus,
-  Clock,
-  Copy,
-  Hash,
+  ChevronRight,
   Home,
   LayoutGrid,
-  Link2,
   LogIn,
   MessageSquare,
-  Moon,
-  Play,
   Plus,
   Search,
   User,
   Users,
   Video,
   X,
-  Link as LinkIcon,
-  Check,
-  Lock,
-  Shield,
-  ChevronRight,
-  Trash2,
 } from 'lucide-react-native';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   Alert,
   ScrollView,
   StatusBar,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -39,7 +27,6 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
-  Modal,
   RefreshControl,
   Easing,
   BackHandler,
@@ -57,6 +44,11 @@ import storage, { StorageKeys, getPersonalMeetingCode } from '../services/storag
 import { useTheme } from '../context/ThemeContext';
 import { ENV } from '../config/env';
 import { getInitials, getAvatarTextStyle } from '../utils/helpers';
+import { styles } from './home/homeScreenStyles';
+import { ScheduledMeetingCard } from './home/ScheduledMeetingCard';
+import { PersonalRoomCard } from './home/PersonalRoomCard';
+import { QuickActionGrid } from './home/QuickActionGrid';
+import { CreateMeetingModal } from './home/CreateMeetingModal';
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Home'>>();
@@ -582,65 +574,18 @@ export const HomeScreen: React.FC = () => {
                   </Text>
                 </View>
 
-                {filteredMeetings.map((meeting) => {
-                  const status = getMeetingStatus(meeting);
-                  return (
-                    <View key={meeting.id} style={[styles.agendaItem, !isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      <View style={[styles.agendaTimeBox, !isDark && { backgroundColor: colors.iconBoxBg, borderColor: 'rgba(0, 140, 208, 0.2)' }]}>
-                        <Text style={[styles.agendaTime, !isDark && { color: colors.primary }]}>{new Date(meeting.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</Text>
-                        <Text style={[styles.agendaAmPm, !isDark && { color: colors.textSecondary }]}>{new Date(meeting.scheduled_at).getHours() >= 12 ? 'PM' : 'AM'}</Text>
-                      </View>
-                      <View style={styles.agendaContent}>
-                        <View style={styles.titleRow}>
-                          <Text style={[styles.agendaTitle, !isDark && { color: colors.textPrimary }]} numberOfLines={1}>{meeting.title}</Text>
-                          <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-                            <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
-                          </View>
-                        </View>
-                        <View style={styles.agendaMeta}>
-                          <View style={styles.metaCodeWrap}>
-                            <Hash color={isDark ? '#64748b' : colors.textMuted} size={11} />
-                            <Text style={[styles.agendaSub, !isDark && { color: colors.textSecondary }]}>{meeting.meeting_code}</Text>
-                          </View>
-                          {Boolean(meeting.passcode || meeting.requires_passcode) && (
-                            <View style={styles.metaOptionBadge}>
-                              <Lock color={colors.primary} size={10} />
-                              <Text style={[styles.metaOptionBadgeText, !isDark && { color: colors.primary }]}>
-                                {meeting.passcode ? `P: ${meeting.passcode}` : 'Pass'}
-                              </Text>
-                            </View>
-                          )}
-                          {Boolean(meeting.waiting_room) && (
-                            <View style={[styles.metaOptionBadge, styles.metaOptionBadgeWaiting]}>
-                              <Shield color="#10b981" size={10} />
-                              <Text style={[styles.metaOptionBadgeText, { color: '#10b981' }]}>
-                                Wait Room
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.agendaActions}>
-                        {meeting.is_host && (
-                          <TouchableOpacity
-                            style={styles.deleteBtn}
-                            onPress={() => handleDeleteMeeting(meeting)}
-                          >
-                            <Trash2 color="#ef4444" size={18} />
-                          </TouchableOpacity>
-                        )}
-                        <TouchableOpacity
-                          style={[styles.joinBtnSmall, status.label === t('home.expired') && { opacity: 0.5 }]}
-                          onPress={() => handleJoinScheduled(meeting)}
-                          disabled={status.label === t('home.expired')}
-                        >
-                          <Text style={styles.joinBtnSmallText}>{t('home.join')}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                })}
+                {filteredMeetings.map((meeting) => (
+                  <ScheduledMeetingCard
+                    key={meeting.id}
+                    meeting={meeting}
+                    status={getMeetingStatus(meeting)}
+                    isDark={isDark}
+                    colors={colors}
+                    t={t}
+                    onDelete={handleDeleteMeeting}
+                    onJoin={handleJoinScheduled}
+                  />
+                ))}
               </View>
             )}
 
@@ -700,87 +645,27 @@ export const HomeScreen: React.FC = () => {
           </View>
         ) : (
           <>
-        <View style={styles.quickGrid}>
-          <TouchableOpacity
-            style={styles.quickCardLarge}
-            onPress={handleStartMeetingClick}
-          >
-            <LinearGradient
-              colors={isDark ? ['rgba(0, 168, 255, 0.2)', 'rgba(0, 102, 204, 0.2)'] : ['rgba(0, 140, 208, 0.15)', 'rgba(0, 102, 204, 0.08)']}
-              style={[styles.quickCardGradient, !isDark && { borderColor: 'rgba(0, 140, 208, 0.3)' }]}
-            >
-              <View style={[styles.iconBox, { backgroundColor: colors.primary }]}><Video color="#FFF" size={22} /></View>
-              <Text style={[styles.quickText, !isDark && { color: colors.primary }]}>{t('home.startMeeting')}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.quickCard, !isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => navigation.navigate('Join')}
-          >
-            <View style={[styles.iconBoxMuted, !isDark && { backgroundColor: colors.iconBoxBg }]}><Plus color={colors.primary} size={22} /></View>
-            <Text style={[styles.quickTextMuted, !isDark && { color: colors.textPrimary }]}>{t('home.joinMeeting')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.quickCard, !isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => navigation.navigate('Schedule')}
-          >
-            <View style={[styles.iconBoxMuted, !isDark && { backgroundColor: colors.iconBoxBg }]}><CalendarPlus color="#10b981" size={22} /></View>
-            <Text style={[styles.quickTextMuted, !isDark && { color: colors.textPrimary }]}>{t('home.schedule')}</Text>
-          </TouchableOpacity>
-        </View>
+        <QuickActionGrid
+          isDark={isDark}
+          colors={colors}
+          t={t}
+          onStartMeeting={handleStartMeetingClick}
+          onJoinMeeting={() => navigation.navigate('Join')}
+          onSchedule={() => navigation.navigate('Schedule')}
+        />
 
         {/* Personal Room Link Card */}
-        <View style={[styles.glassCard, !isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderLeft}>
-              <View style={[styles.headerIcon, !isDark && { backgroundColor: colors.iconBoxBg }]}><Link2 color={colors.primary} size={18} /></View>
-              <View>
-                <Text style={[styles.cardTitle, !isDark && { color: colors.textPrimary }]}>{t('home.personalRoomLink')}</Text>
-                <Text style={[styles.cardSub, !isDark && { color: colors.textSecondary }]}>{t('home.fixedId')}</Text>
-              </View>
-            </View>
-            <View style={styles.onlineBadge}><Text style={styles.onlineBadgeText}>{t('common.active')}</Text></View>
-          </View>
-          <TouchableOpacity
-            style={[styles.urlBox, !isDark && { backgroundColor: colors.cardSubtle }]}
-            onPress={() => copyToClipboard(personalRoomFullUrl)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.urlText, !isDark && { color: colors.primary }]} numberOfLines={1}>
-              {personalRoomDisplayUrl}
-            </Text>
-            <TouchableOpacity onPress={() => copyToClipboard(personalRoomFullUrl)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              {copied ? <Check color="#10b981" size={14} /> : <Copy color={isDark ? '#94a3b8' : colors.textSecondary} size={14} />}
-            </TouchableOpacity>
-          </TouchableOpacity>
-          <View style={styles.cardActions}>
-            <TouchableOpacity
-              style={[styles.secondaryBtn, !isDark && { backgroundColor: colors.cardSubtle, borderColor: colors.border }]}
-              onPress={() => copyToClipboard(personalRoomFullUrl)}
-            >
-              {copied ? <Check color="#10b981" size={16} /> : <Copy color={colors.primary} size={16} />}
-              <Text style={[styles.secondaryBtnText, !isDark && { color: colors.textPrimary }]}>
-                {copied ? t('common.copied') : t('home.copyLink')}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.primaryBtnSmall, isStartingPersonalRoom && { opacity: 0.8 }]}
-              onPress={handleStartPersonalRoom}
-              disabled={isStartingPersonalRoom}
-            >
-              {isStartingPersonalRoom ? (
-                <ActivityIndicator color="#FFF" size="small" />
-              ) : (
-                <>
-                  <Play color="#FFF" size={14} fill="#FFF" />
-                  <Text style={styles.primaryBtnSmallText}>{t('home.startRoom')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+        <PersonalRoomCard
+          personalRoomDisplayUrl={personalRoomDisplayUrl}
+          personalRoomFullUrl={personalRoomFullUrl}
+          copied={copied}
+          isStartingPersonalRoom={isStartingPersonalRoom}
+          onCopy={copyToClipboard}
+          onStart={handleStartPersonalRoom}
+          isDark={isDark}
+          colors={colors}
+          t={t}
+        />
 
         {/* Today's Schedule */}
         <View style={styles.scheduleSection}>
@@ -794,66 +679,18 @@ export const HomeScreen: React.FC = () => {
                 <Text style={[styles.emptyScheduleText, !isDark && { color: colors.textMuted }]}>{t('home.noMeetings')}</Text>
             </View>
           ) : (
-            meetings.map((meeting) => {
-              const status = getMeetingStatus(meeting);
-              const meetingDate = meeting.scheduled_at ? new Date(meeting.scheduled_at) : new Date();
-              return (
-                <View key={meeting.id} style={[styles.agendaItem, !isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={[styles.agendaTimeBox, !isDark && { backgroundColor: colors.iconBoxBg, borderColor: 'rgba(0, 140, 208, 0.2)' }]}>
-                    <Text style={[styles.agendaTime, !isDark && { color: colors.primary }]}>{meetingDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</Text>
-                    <Text style={[styles.agendaAmPm, !isDark && { color: colors.textSecondary }]}>{meetingDate.getHours() >= 12 ? 'PM' : 'AM'}</Text>
-                  </View>
-                  <View style={styles.agendaContent}>
-                    <View style={styles.titleRow}>
-                      <Text style={[styles.agendaTitle, !isDark && { color: colors.textPrimary }]} numberOfLines={1}>{meeting.title}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-                        <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.agendaMeta}>
-                      <View style={styles.metaCodeWrap}>
-                        <Hash color={isDark ? '#64748b' : colors.textMuted} size={11} />
-                        <Text style={[styles.agendaSub, !isDark && { color: colors.textSecondary }]}>{meeting.meeting_code}</Text>
-                      </View>
-                      {Boolean(meeting.passcode || meeting.requires_passcode) && (
-                        <View style={styles.metaOptionBadge}>
-                          <Lock color={colors.primary} size={10} />
-                          <Text style={[styles.metaOptionBadgeText, !isDark && { color: colors.primary }]}>
-                            {meeting.passcode ? `P: ${meeting.passcode}` : 'Pass'}
-                          </Text>
-                        </View>
-                      )}
-                      {Boolean(meeting.waiting_room) && (
-                        <View style={[styles.metaOptionBadge, styles.metaOptionBadgeWaiting]}>
-                          <Shield color="#10b981" size={10} />
-                          <Text style={[styles.metaOptionBadgeText, { color: '#10b981' }]}>
-                            Wait Room
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={styles.agendaActions}>
-                    {meeting.is_host && (
-                      <TouchableOpacity
-                        style={styles.deleteBtn}
-                        onPress={() => handleDeleteMeeting(meeting)}
-                      >
-                        <Trash2 color="#ef4444" size={18} />
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      style={[styles.joinBtnSmall, status.label === t('home.expired') && { opacity: 0.5 }]}
-                      onPress={() => handleJoinScheduled(meeting)}
-                      disabled={status.label === t('home.expired')}
-                    >
-                      <Text style={styles.joinBtnSmallText}>{t('home.join')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })
+            meetings.map((meeting) => (
+              <ScheduledMeetingCard
+                key={meeting.id}
+                meeting={meeting}
+                status={getMeetingStatus(meeting)}
+                isDark={isDark}
+                colors={colors}
+                t={t}
+                onDelete={handleDeleteMeeting}
+                onJoin={handleJoinScheduled}
+              />
+            ))
           )}
         </View>
         </>
@@ -861,82 +698,22 @@ export const HomeScreen: React.FC = () => {
       </ScrollView>
 
       {/* Create Meeting Modal */}
-      <Modal
+      <CreateMeetingModal
         visible={showCreateModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCreateModal(false)}
-      >
-        <View style={[styles.modalOverlay, !isDark && { backgroundColor: colors.modalOverlay }]}>
-          <View
-            style={[
-              styles.modalContent,
-              { paddingBottom: insets.bottom + 20 },
-              !isDark && {
-                backgroundColor: colors.modalBg,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <View style={[styles.modalDragHandle, !isDark && { backgroundColor: colors.border }]} />
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, !isDark && { color: colors.textPrimary }]}>{t('home.createMeetingTitle')}</Text>
-              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-                <X color={isDark ? '#94a3b8' : colors.textSecondary} size={24} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <Text style={[styles.modalLabel, !isDark && { color: colors.textSecondary }]}>{t('home.meetingTitlePlaceholder')}</Text>
-              <View style={[styles.modalInputWrapper, !isDark && { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
-                <TextInput
-                  style={[styles.modalInput, !isDark && { color: colors.textPrimary }]}
-                  value={meetingTitle}
-                  onChangeText={setMeetingTitle}
-                  placeholder={t('home.meetingTitlePlaceholder')}
-                  placeholderTextColor={isDark ? '#64748b' : colors.textMuted}
-                />
-              </View>
-
-              {!generatedLink ? (
-                <TouchableOpacity
-                  style={[
-                    styles.generateBtn,
-                    !isDark && {
-                      backgroundColor: colors.iconBoxBg,
-                      borderColor: 'rgba(0, 140, 208, 0.3)',
-                    },
-                  ]}
-                  onPress={handleCreateMeeting}
-                  disabled={loading}
-                >
-                  {loading ? <ActivityIndicator color="#FFF" /> : (
-                    <>
-                      <LinkIcon color={colors.primary} size={18} />
-                      <Text style={[styles.generateBtnText, !isDark && { color: colors.primary }]}>{t('home.createAndJoin')}</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.linkResultBox}>
-                  <Text style={styles.linkResultLabel}>{copied ? t('common.linkCopied') : t('home.personalRoomLink')}</Text>
-                  <View style={[styles.linkDisplay, !isDark && { backgroundColor: colors.cardSubtle, borderColor: colors.border }, copied && { borderColor: '#10b981' }]}>
-                    <Text style={[styles.linkText, !isDark && { color: colors.primary }]} numberOfLines={1}>{generatedLink}</Text>
-                    <TouchableOpacity onPress={() => copyToClipboard(generatedLink)}>
-                      {copied ? <Check color="#10b981" size={18} /> : <Copy color={colors.primary} size={18} />}
-                    </TouchableOpacity>
-                  </View>
-
-                  <TouchableOpacity style={styles.modalJoinBtn} onPress={handleJoinCreatedMeeting}>
-                    <Video color="#FFF" size={20} />
-                    <Text style={styles.modalJoinBtnText}>{t('join.enterMeeting')}</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowCreateModal(false)}
+        meetingTitle={meetingTitle}
+        setMeetingTitle={setMeetingTitle}
+        loading={loading}
+        generatedLink={generatedLink}
+        copied={copied}
+        onCreateMeeting={handleCreateMeeting}
+        onJoinCreatedMeeting={handleJoinCreatedMeeting}
+        onCopyLink={copyToClipboard}
+        isDark={isDark}
+        colors={colors}
+        insets={insets}
+        t={t}
+      />
 
       {/* Speed Dial Menu Items */}
       {isMenuOpen && (
@@ -1004,148 +781,5 @@ export const HomeScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050B14' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 30 },
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 10, gap: 12 },
-  profileBtn: { position: 'relative' },
-  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#525A6B', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  avatarImg: { width: '100%', height: '100%', borderRadius: 19 },
-  avatarText: { color: '#FFF', fontSize: 14, fontFamily: 'PlusJakartaSans-Bold' },
-  onlineStatus: { position: 'absolute', bottom: -1, right: -1, width: 12, height: 12, borderRadius: 6, backgroundColor: '#10b981', borderWidth: 2, borderColor: '#050B14' },
-  searchBar: { flex: 1, height: 40, backgroundColor: 'rgba(255, 255, 255, 0.07)', borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)', gap: 8 },
-  searchInput: { flex: 1, color: '#FFF', fontSize: 13, fontFamily: 'PlusJakartaSans-Medium', padding: 0 },
-  searchClearBtn: { padding: 4 },
-  searchResultsContainer: { gap: 18 },
-  searchResultsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  searchResultsTitle: { color: '#FFF', fontSize: 15, fontFamily: 'PlusJakartaSans-Bold' },
-  clearSearchBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: 'rgba(255, 255, 255, 0.08)' },
-  clearSearchText: { color: '#94a3b8', fontSize: 11, fontFamily: 'PlusJakartaSans-Medium' },
-
-  searchQuickJoinCard: { borderRadius: 18, overflow: 'hidden', marginBottom: 8 },
-  searchQuickJoinGradient: { flexDirection: 'row', alignItems: 'center', padding: 14, borderWidth: 1, borderColor: 'rgba(0, 168, 255, 0.35)', borderRadius: 18, gap: 12 },
-  searchQuickJoinIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#00A8FF', alignItems: 'center', justifyContent: 'center' },
-  searchQuickJoinTexts: { flex: 1 },
-  searchQuickJoinBadge: { color: '#00A8FF', fontSize: 10, fontFamily: 'PlusJakartaSans-Bold', letterSpacing: 0.5, textTransform: 'uppercase' },
-  searchQuickJoinCode: { color: '#FFF', fontSize: 15, fontFamily: 'PlusJakartaSans-Bold', marginTop: 1 },
-  searchQuickJoinSub: { color: '#94a3b8', fontSize: 11, fontFamily: 'PlusJakartaSans-Regular', marginTop: 1 },
-  quickJoinGoBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#00A8FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, gap: 2 },
-  quickJoinGoText: { color: '#FFF', fontSize: 11, fontFamily: 'PlusJakartaSans-Bold' },
-
-  searchSection: { gap: 10 },
-  searchSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  searchSectionTitle: { color: '#94a3b8', fontSize: 12, fontFamily: 'PlusJakartaSans-Bold', letterSpacing: 0.5 },
-
-  contactItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(15, 27, 48, 0.72)', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', gap: 12 },
-  contactAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0, 168, 255, 0.18)', borderWidth: 1, borderColor: 'rgba(0, 168, 255, 0.35)', alignItems: 'center', justifyContent: 'center' },
-  contactAvatarText: { color: '#38BDF8', fontSize: 13, fontFamily: 'PlusJakartaSans-Bold' },
-  contactInfo: { flex: 1 },
-  contactName: { color: '#FFF', fontSize: 13, fontFamily: 'PlusJakartaSans-Bold' },
-  contactEmail: { color: '#64748b', fontSize: 11, fontFamily: 'PlusJakartaSans-Medium', marginTop: 1 },
-  contactMsgBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(0, 168, 255, 0.1)', borderWidth: 1, borderColor: 'rgba(0, 168, 255, 0.2)', alignItems: 'center', justifyContent: 'center' },
-
-  searchEmptyCard: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20, gap: 8 },
-  searchEmptyIconBox: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  searchEmptyTitle: { color: '#FFF', fontSize: 15, fontFamily: 'PlusJakartaSans-Bold' },
-  searchEmptySub: { color: '#00A8FF', fontSize: 13, fontFamily: 'PlusJakartaSans-Medium', textAlign: 'center' },
-  searchEmptyHint: { color: '#64748b', fontSize: 11, fontFamily: 'PlusJakartaSans-Regular', textAlign: 'center', maxWidth: 260, marginTop: 2 },
-  searchEmptyClearBtn: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.12)' },
-  searchEmptyClearBtnText: { color: '#FFF', fontSize: 12, fontFamily: 'PlusJakartaSans-SemiBold' },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 150 },
-  quickGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  quickCardLarge: { flex: 1, height: 110, borderRadius: 20, overflow: 'hidden' },
-  quickCardGradient: { flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(0, 168, 255, 0.3)' },
-  quickCard: { flex: 1, height: 110, borderRadius: 20, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)', alignItems: 'center', justifyContent: 'center' },
-  iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  iconBoxMuted: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255, 255, 255, 0.08)', alignItems: 'center', justifyContent: 'center' },
-  quickText: { color: '#FFF', fontSize: 11, fontFamily: 'PlusJakartaSans-Bold', marginTop: 10 },
-  quickTextMuted: { color: '#FFF', fontSize: 11, fontFamily: 'PlusJakartaSans-Bold', marginTop: 10, textAlign: 'center' },
-  glassCard: { backgroundColor: 'rgba(15, 27, 48, 0.72)', borderRadius: 24, padding: 16, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)', marginBottom: 20 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  cardHeaderLeft: { flexDirection: 'row', gap: 10 },
-  headerIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(0, 168, 255, 0.15)', alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { color: '#FFF', fontSize: 13, fontFamily: 'PlusJakartaSans-Bold' },
-  cardSub: { color: '#94a3b8', fontSize: 10, fontFamily: 'PlusJakartaSans-Medium' },
-  onlineBadge: { backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  onlineBadgeText: { color: '#10b981', fontSize: 10, fontFamily: 'PlusJakartaSans-Bold' },
-  urlBox: { flexDirection: 'row', backgroundColor: 'rgba(0, 0, 0, 0.4)', padding: 10, borderRadius: 12, justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  urlText: { color: '#00A8FF', fontSize: 11, fontFamily: 'monospace' },
-  cardActions: { flexDirection: 'row', gap: 10 },
-  secondaryBtn: { flex: 1, height: 40, backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
-  secondaryBtnText: { color: '#e2e8f0', fontSize: 12, fontFamily: 'PlusJakartaSans-Bold' },
-  primaryBtnSmall: { flex: 1, height: 40, backgroundColor: '#00A8FF', borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
-  primaryBtnSmallText: { color: '#FFF', fontSize: 12, fontFamily: 'PlusJakartaSans-Bold' },
-  scheduleSection: { gap: 12 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
-  sectionTitle: { color: '#94a3b8', fontSize: 11, fontFamily: 'PlusJakartaSans-Bold', letterSpacing: 1 },
-  viewAll: { color: '#00A8FF', fontSize: 10, fontFamily: 'PlusJakartaSans-Bold' },
-  agendaItem: { flexDirection: 'row', backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: 14, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)', alignItems: 'center', gap: 14 },
-  agendaTimeBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(0, 168, 255, 0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(0, 168, 255, 0.2)' },
-  agendaTime: { color: '#00A8FF', fontSize: 11, fontFamily: 'PlusJakartaSans-Bold' },
-  agendaAmPm: { color: '#64748b', fontSize: 8, fontFamily: 'PlusJakartaSans-Bold' },
-  agendaContent: { flex: 1 },
-  agendaTitle: { color: '#FFF', fontSize: 13, fontFamily: 'PlusJakartaSans-Bold', maxWidth: '70%' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  statusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  statusText: { fontSize: 8, fontFamily: 'PlusJakartaSans-Bold', textTransform: 'uppercase' },
-  agendaMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 2 },
-  metaCodeWrap: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  metaOptionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(0, 168, 255, 0.08)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 168, 255, 0.2)',
-  },
-  metaOptionBadgeWaiting: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  metaOptionBadgeText: {
-    color: '#00A8FF',
-    fontSize: 9,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  agendaSub: { color: '#64748b', fontSize: 10, fontFamily: 'PlusJakartaSans-Medium' },
-  agendaActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  deleteBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(239, 68, 68, 0.1)', alignItems: 'center', justifyContent: 'center' },
-  joinBtnSmall: { backgroundColor: '#00A8FF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
-  joinBtnSmallText: { color: '#FFF', fontSize: 12, fontFamily: 'PlusJakartaSans-Bold' },
-  emptySchedule: { alignItems: 'center', paddingVertical: 20 },
-  emptyScheduleText: { color: '#64748b', fontSize: 12, fontFamily: 'PlusJakartaSans-Medium' },
-  fab: { position: 'absolute', right: 20, width: 54, height: 54, borderRadius: 27, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', elevation: 10, zIndex: 40 },
-  menuContainer: { position: 'absolute', right: 22, gap: 14, alignItems: 'flex-end', zIndex: 40 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  menuLabelWrapper: { backgroundColor: 'rgba(15, 27, 48, 0.85)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
-  menuText: { color: '#FFF', fontSize: 12, fontFamily: 'PlusJakartaSans-Bold' },
-  menuIconBox: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
-  navDock: { position: 'absolute', bottom: 10, left: 20, right: 20, height: 70, backgroundColor: 'rgba(12, 22, 38, 0.85)', borderRadius: 35, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)', zIndex: 20 },
-  navItem: { alignItems: 'center', gap: 4 },
-  navText: { color: '#94a3b8', fontSize: 10, fontFamily: 'PlusJakartaSans-Medium' },
-  navTextActive: { color: '#00A8FF', fontSize: 10, fontFamily: 'PlusJakartaSans-Bold' },
-
-  // Modal Styles
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#0B1728', borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 24, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)' },
-  modalDragHandle: { width: 40, height: 4, backgroundColor: '#334155', borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  modalTitle: { color: '#FFF', fontSize: 20, fontFamily: 'PlusJakartaSans-Bold' },
-  modalBody: { gap: 16 },
-  modalLabel: { color: '#94a3b8', fontSize: 13, fontFamily: 'PlusJakartaSans-Bold' },
-  modalInputWrapper: { height: 56, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)', paddingHorizontal: 16, justifyContent: 'center' },
-  modalInput: { color: '#FFF', fontSize: 15, fontFamily: 'PlusJakartaSans-Medium' },
-  generateBtn: { height: 56, backgroundColor: 'rgba(0, 168, 255, 0.1)', borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(0, 168, 255, 0.3)' },
-  generateBtnText: { color: '#00A8FF', fontSize: 15, fontFamily: 'PlusJakartaSans-Bold' },
-  linkResultBox: { gap: 16, marginTop: 8 },
-  linkResultLabel: { color: '#10b981', fontSize: 12, fontFamily: 'PlusJakartaSans-Bold', textAlign: 'center' },
-  linkDisplay: { height: 50, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' },
-  linkText: { color: '#00A8FF', fontSize: 13, fontFamily: 'monospace', flex: 1, marginRight: 10 },
-  modalJoinBtn: { height: 58, backgroundColor: '#00A8FF', borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, shadowColor: '#00A8FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
-  modalJoinBtnText: { color: '#FFF', fontSize: 16, fontFamily: 'PlusJakartaSans-Bold' },
-});
-
 export default HomeScreen;
+

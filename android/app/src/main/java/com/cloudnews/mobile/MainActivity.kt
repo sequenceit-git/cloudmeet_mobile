@@ -3,6 +3,7 @@ package com.cloudnews.mobile
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -27,6 +28,8 @@ class MainActivity : ReactActivity() {
 
       fun getActiveActivity(): MainActivity? = activeActivityRef?.get()
   }
+
+  private var userLeaveHintAtMs: Long = 0L
 
   override fun onCreate(savedInstanceState: Bundle?) {
     val currentTaskId = taskId
@@ -115,6 +118,9 @@ class MainActivity : ReactActivity() {
 
     // Set this instance as the single active activity
     activeActivityRef = WeakReference(this)
+    // Manifest must not lock portrait: a fixed orientation makes Samsung cancel
+    // PiP immediately (true then false) and the meeting looks paused.
+    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
   }
 
   /**
@@ -146,9 +152,16 @@ class MainActivity : ReactActivity() {
   }
 
   override fun onPause() {
-      super.onPause()
       val inPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) isInPictureInPictureMode else false
-      Log.d(TAG, "[ON_PAUSE] taskId=$taskId, instance=${System.identityHashCode(this)}, inPip=$inPip")
+      val canPip = PictureInPictureModule.canEnterPip()
+      val hinted = System.currentTimeMillis() - userLeaveHintAtMs < 1500L
+      Log.d(TAG, "[ON_PAUSE] taskId=$taskId, instance=${System.identityHashCode(this)}, inPip=$inPip, canEnterPip=$canPip, hinted=$hinted")
+      // Home already entered PiP from onUserLeaveHint. A second enter here is
+      // what Samsung reports as PiP true then immediate false (call looks paused).
+      if (!hinted && !inPip && canPip) {
+          PictureInPictureModule.enterPipMode(this)
+      }
+      super.onPause()
   }
 
   /**
@@ -173,21 +186,29 @@ class MainActivity : ReactActivity() {
   }
 
   /**
-   * Called when the user presses Home button or leaves the app.
-   * If user is in a meeting and screen share is NOT active, automatically enter Picture-in-Picture.
-   * If screen share IS active, do NOT enter PiP so user can present other apps.
+   * Called when the user presses Home or leaves the app.
+   * Enter PiP here (not via auto-enter). Auto-enter races JS layout and
+   * closes the window, which pauses the meeting.
    */
   override fun onUserLeaveHint() {
-      super.onUserLeaveHint()
+      userLeaveHintAtMs = System.currentTimeMillis()
+      val alreadyInPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode
       val canPip = PictureInPictureModule.canEnterPip()
-      Log.d(TAG, "[ON_USER_LEAVE_HINT] taskId=$taskId, instance=${System.identityHashCode(this)}, canEnterPip=$canPip")
-      if (canPip) {
+      Log.d(
+          TAG,
+          "[ON_USER_LEAVE_HINT] taskId=$taskId, instance=${System.identityHashCode(this)}, canEnterPip=$canPip, alreadyInPip=$alreadyInPip"
+      )
+      if (!alreadyInPip && canPip) {
+          PictureInPictureModule.suppressChrome(this)
           PictureInPictureModule.enterPipMode(this)
       }
+      super.onUserLeaveHint()
   }
 
   /**
    * Notify JS/React Native when Picture-in-Picture mode is entered or exited.
+   * Only the 2-arg API 26+ override is used so configuration changes do not
+   * emit a duplicate false event that aborts PiP from JS.
    */
   override fun onPictureInPictureModeChanged(
       isInPictureInPictureMode: Boolean,
@@ -198,17 +219,7 @@ class MainActivity : ReactActivity() {
           TAG,
           "[ON_PIP_MODE_CHANGED] taskId=$taskId, instance=${System.identityHashCode(this)}, isInPictureInPictureMode=$isInPictureInPictureMode"
       )
-      PictureInPictureModule.notifyPipModeChanged(isInPictureInPictureMode)
-  }
-
-  @Deprecated("Deprecated in Java")
-  override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
-      super.onPictureInPictureModeChanged(isInPictureInPictureMode)
-      Log.d(
-          TAG,
-          "[ON_PIP_MODE_CHANGED_1_ARG] taskId=$taskId, instance=${System.identityHashCode(this)}, isInPictureInPictureMode=$isInPictureInPictureMode"
-      )
-      PictureInPictureModule.notifyPipModeChanged(isInPictureInPictureMode)
+      PictureInPictureModule.onModeChanged(this, isInPictureInPictureMode)
   }
 
   /**

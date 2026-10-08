@@ -5,7 +5,7 @@ import { Linking } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import HomeScreen from '../screens/HomeScreen';
 import JoinScreen from '../screens/JoinScreen';
-import MeetingRoomScreen from '../screens/MeetingRoomScreen';
+import MeetingRoomScreen from '../screens/meeting/MeetingRoomScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
 import MessagesScreen from '../screens/MessagesScreen';

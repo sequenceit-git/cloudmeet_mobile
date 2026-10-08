@@ -37,6 +37,9 @@ import { useTheme } from '../context/ThemeContext';
 import { RootStackNavigationProp } from '../navigation/types';
 import { scheduleMeeting } from '../services/api';
 import storage, { StorageKeys } from '../services/storage';
+import { styles } from './schedule/scheduleStyles';
+import { ScheduleDatePickerModal } from './schedule/ScheduleDatePickerModal';
+import { SchedulePasscodeSection } from './schedule/SchedulePasscodeSection';
 
 export const ScheduleScreen: React.FC = () => {
   const navigation = useNavigation<RootStackNavigationProp<'Schedule'>>();
@@ -399,79 +402,16 @@ export const ScheduleScreen: React.FC = () => {
 
           {/* Passcode Input Field (Shown when Require Passcode is ON) */}
           {requirePasscode && (
-            <View
-              style={[
-                styles.passcodeContainer,
-                !isDark && {
-                  backgroundColor: 'rgba(0, 140, 208, 0.06)',
-                  borderColor: 'rgba(0, 140, 208, 0.25)',
-                },
-              ]}
-            >
-              <Text style={[styles.passcodeLabel, { color: colors.primary }]}>
-                {t('schedule.passcodeFieldLabel')}
-              </Text>
-              <View style={styles.passcodeRow}>
-                <View
-                  style={[
-                    styles.passcodeInputBox,
-                    !isDark && {
-                      backgroundColor: '#F8FAFC',
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <Lock color={isDark ? '#64748b' : '#94a3b8'} size={16} style={{ marginRight: 8 }} />
-                  <TextInput
-                    style={[styles.passcodeInput, { color: colors.text }]}
-                    value={passcode}
-                    onChangeText={setPasscode}
-                    placeholder="6-digit passcode"
-                    placeholderTextColor={isDark ? '#64748b' : '#94a3b8'}
-                    keyboardType="number-pad"
-                    maxLength={16}
-                    autoCapitalize="none"
-                  />
-                </View>
-
-                {/* Regenerate Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.passcodeActionBtn,
-                    !isDark && {
-                      backgroundColor: '#F1F5F9',
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  onPress={handleRegeneratePasscode}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Regenerate passcode"
-                >
-                  <RefreshCw color={colors.primary} size={16} />
-                </TouchableOpacity>
-
-                {/* Copy Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.passcodeActionBtn,
-                    !isDark && {
-                      backgroundColor: '#F1F5F9',
-                      borderColor: colors.border,
-                    },
-                    copiedPasscode && styles.passcodeActionBtnSuccess,
-                  ]}
-                  onPress={handleCopyPasscode}
-                  activeOpacity={0.7}
-                  accessibilityLabel="Copy passcode"
-                >
-                  {copiedPasscode ? (
-                    <Check color="#10B981" size={16} />
-                  ) : (
-                    <Copy color={colors.primary} size={16} />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
+            <SchedulePasscodeSection
+              passcode={passcode}
+              isDark={isDark}
+              colors={colors}
+              copiedPasscode={copiedPasscode}
+              t={t}
+              onPasscodeChange={setPasscode}
+              onRegenerate={handleRegeneratePasscode}
+              onCopy={handleCopyPasscode}
+            />
           )}
 
           <View style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : colors.border }]} />
@@ -524,341 +464,24 @@ export const ScheduleScreen: React.FC = () => {
       </View>
 
       {/* Fallback Picker Modal (iOS or unsupported environments) */}
-      {pickerMode && (
-        <Modal
-          transparent
-          animationType="fade"
-          visible={Boolean(pickerMode)}
-          onRequestClose={() => setPickerMode(null)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, !isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  {pickerMode === 'date' ? t('schedule.dateLabel') : t('schedule.timeLabel')}
-                </Text>
-              </View>
-
-              <View style={styles.pickerWrapper}>
-                <DateTimePicker
-                  value={tempPickerDate}
-                  mode={pickerMode}
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  is24Hour={true}
-                  minimumDate={pickerMode === 'date' ? new Date() : undefined}
-                  onChange={(_, selected) => {
-                    if (selected) setTempPickerDate(selected);
-                  }}
-                  themeVariant={isDark ? 'dark' : 'light'}
-                  textColor={colors.text}
-                />
-              </View>
-
-              <View style={styles.modalBtnRow}>
-                <TouchableOpacity
-                  style={[styles.modalCancelBtn, !isDark && { backgroundColor: '#F1F5F9' }]}
-                  onPress={() => setPickerMode(null)}
-                >
-                  <Text style={[styles.modalCancelText, !isDark && { color: colors.textSecondary }]}>
-                    {t('common.cancel')}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalConfirmBtn}
-                  onPress={() => {
-                    const updated = new Date(scheduledDate);
-                    if (pickerMode === 'date') {
-                      updated.setFullYear(
-                        tempPickerDate.getFullYear(),
-                        tempPickerDate.getMonth(),
-                        tempPickerDate.getDate()
-                      );
-                    } else {
-                      updated.setHours(
-                        tempPickerDate.getHours(),
-                        tempPickerDate.getMinutes(),
-                        0,
-                        0
-                      );
-                    }
-                    setScheduledDate(updated);
-                    setPickerMode(null);
-                  }}
-                >
-                  <Text style={styles.modalConfirmText}>{t('common.confirm') || 'OK'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
+      <ScheduleDatePickerModal
+        visible={Boolean(pickerMode)}
+        pickerMode={pickerMode}
+        tempPickerDate={tempPickerDate}
+        scheduledDate={scheduledDate}
+        isDark={isDark}
+        colors={colors}
+        t={t}
+        onTempDateChange={setTempPickerDate}
+        onConfirm={(updated) => {
+          setScheduledDate(updated);
+          setPickerMode(null);
+        }}
+        onClose={() => setPickerMode(null)}
+      />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#050B14',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    gap: 20,
-    paddingBottom: 40,
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  label: {
-    color: '#94a3b8',
-    fontSize: 12,
-    fontFamily: 'PlusJakartaSans-Bold',
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    height: 54,
-    paddingHorizontal: 16,
-    color: '#FFF',
-    fontSize: 14,
-    fontFamily: 'PlusJakartaSans-Medium',
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  pickerTriggerBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 168, 255, 0.25)',
-    height: 60,
-    paddingHorizontal: 12,
-    gap: 10,
-  },
-  pickerIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0, 168, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pickerTextColumn: {
-    flex: 1,
-  },
-  pickerMainText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  pickerSubText: {
-    color: '#00A8FF',
-    fontSize: 11,
-    fontFamily: 'PlusJakartaSans-Medium',
-    marginTop: 2,
-  },
-  settingsCard: {
-    backgroundColor: 'rgba(15, 27, 48, 0.72)',
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    gap: 14,
-  },
-  settingsHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  settingsTitle: {
-    color: '#94a3b8',
-    fontSize: 12,
-    fontFamily: 'PlusJakartaSans-Bold',
-    letterSpacing: 1,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  settingTextContainer: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  settingLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  settingText: {
-    color: '#e2e8f0',
-    fontSize: 14,
-    fontFamily: 'PlusJakartaSans-SemiBold',
-  },
-  settingSub: {
-    color: '#64748b',
-    fontSize: 11,
-    fontFamily: 'PlusJakartaSans-Regular',
-    marginTop: 3,
-  },
-  passcodeContainer: {
-    backgroundColor: 'rgba(0, 168, 255, 0.05)',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 168, 255, 0.2)',
-    gap: 8,
-  },
-  passcodeLabel: {
-    color: '#00A8FF',
-    fontSize: 11,
-    fontFamily: 'PlusJakartaSans-Bold',
-    letterSpacing: 0.5,
-  },
-  passcodeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  passcodeInputBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    height: 44,
-    paddingHorizontal: 12,
-  },
-  passcodeInput: {
-    flex: 1,
-    color: '#FFF',
-    fontSize: 15,
-    fontFamily: 'monospace',
-    letterSpacing: 2,
-    padding: 0,
-  },
-  passcodeActionBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  passcodeActionBtnSuccess: {
-    borderColor: 'rgba(16, 185, 129, 0.5)',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    marginVertical: 4,
-  },
-  footer: {
-    padding: 20,
-  },
-  saveBtn: {
-    height: 56,
-    borderRadius: 16,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: '#0B1728',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    padding: 20,
-    gap: 16,
-  },
-  modalHeader: {
-    alignItems: 'center',
-  },
-  modalTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  pickerWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-  },
-  modalBtnRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  modalCancelBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCancelText: {
-    color: '#94a3b8',
-    fontSize: 14,
-    fontFamily: 'PlusJakartaSans-SemiBold',
-  },
-  modalConfirmBtn: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#00A8FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalConfirmText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-});
-
 export default ScheduleScreen;
+
