@@ -132,7 +132,7 @@ import {
 } from '../utils/wakeLock';
 import { startAudioSession, stopAudioSession } from '../services/livekit';
 import { MediaPreviewModal, MediaPreviewItem, sanitizeMediaUrl } from '../components/meeting/MediaPreviewModal';
-import { setPipConfig, prepareScreenShare, addPipListener, isInPipMode } from '../utils/pip';
+import { setPipConfig, prepareScreenShare, addPipListener, isInPipMode, maximizeFromPip } from '../utils/pip';
 
 // Safely resolve iOS-only ScreenCapturePickerView without crashing on Android
 const ScreenCapturePickerViewComponent: any = Platform.OS === 'ios'
@@ -1644,12 +1644,13 @@ export const MeetingRoomContent: React.FC<{
       resetControlsTimer();
     }
   }, [isAudioModalOpen, isChatOpen, isParticipantsOpen, isInfoModalOpen, isLeaveModalOpen, isInviteModalOpen, resetControlsTimer]);
-
   const handleScreenTap = useCallback(() => {
-    console.log('[MeetingRoomScreen] Screen tapped!');
+    if (isNativePip) {
+      maximizeFromPip();
+      return;
+    }
     setShowControls(prev => {
       const next = !prev;
-      console.log('[MeetingRoomScreen] Toggling showControls to:', next);
       if (next) {
         resetControlsTimer();
       } else {
@@ -1660,7 +1661,15 @@ export const MeetingRoomContent: React.FC<{
       }
       return next;
     });
-  }, [resetControlsTimer]);
+  }, [isNativePip, resetControlsTimer]);
+
+  // Ensure controls are immediately shown whenever exiting PiP mode
+  useEffect(() => {
+    if (!isNativePip) {
+      setShowControls(true);
+      resetControlsTimer();
+    }
+  }, [isNativePip, resetControlsTimer]);
 
   useEffect(() => {
     Animated.parallel([
@@ -5314,56 +5323,18 @@ export const MeetingRoomContent: React.FC<{
       )}
 
       {/* --- BOTTOM CONTROLS --- */}
-      <Animated.View
-        pointerEvents={showControls ? 'auto' : 'none'}
-        style={[
-          isNativePip ? styles.pipFooter : styles.footer,
-          {
-            paddingBottom: isNativePip ? 8 : (insets.bottom + 14),
-            opacity: controlsOpacity,
-            transform: [{ translateY: footerTranslateY }],
-          },
-        ]}
-      >
-        {isNativePip ? (
-          <View style={styles.pipControlsDock}>
-            <TouchableOpacity
-              style={[styles.pipControlBtn, isMicMuted && styles.pipControlBtnMuted]}
-              onPress={() => {
-                resetControlsTimer();
-                handleToggleMic();
-              }}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              {isMicMuted ? <MicOff color="#ef4444" size={18} /> : <Mic color="#10b981" size={18} />}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.pipControlBtn, isCameraOff && styles.pipControlBtnMuted]}
-              onPress={() => {
-                resetControlsTimer();
-                handleToggleCamera();
-              }}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              {isCameraOff ? <VideoOff color="#ef4444" size={18} /> : <LucideVideo color="#10b981" size={18} />}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.pipControlBtn, styles.pipLeaveBtn]}
-              onPress={() => {
-                resetControlsTimer();
-                setIsLeaveModalOpen(true);
-              }}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <LogOut color="#ef4444" size={18} />
-            </TouchableOpacity>
-          </View>
-        ) : (
+      {!isNativePip && (
+        <Animated.View
+          pointerEvents={showControls ? 'auto' : 'none'}
+          style={[
+            styles.footer,
+            {
+              paddingBottom: insets.bottom + 14,
+              opacity: controlsOpacity,
+              transform: [{ translateY: footerTranslateY }],
+            },
+          ]}
+        >
           <View style={styles.controlsDock}>
             <TouchableOpacity
               style={styles.controlItem}
@@ -5472,11 +5443,11 @@ export const MeetingRoomContent: React.FC<{
               <Text style={styles.controlLabel}>{t('meeting.members')}</Text>
             </TouchableOpacity>
           </View>
-        )}
-      </Animated.View>
+        </Animated.View>
+      )}
 
       {/* --- UNIFIED FULL-SCREEN TAP-TO-SHOW-CONTROLS SURFACE --- */}
-      {!showControls && !isMinimized && (
+      {(!showControls || isNativePip) && !isMinimized && (
         <TouchableOpacity
           activeOpacity={1}
           onPress={handleScreenTap}
@@ -6548,44 +6519,6 @@ const styles = StyleSheet.create({
   gridAvatarName: { color: '#FFFFFF', fontSize: 15, fontFamily: 'PlusJakartaSans-Bold', letterSpacing: -0.2 },
   roleSubtext: { color: '#94a3b8', fontSize: 9, marginTop: 8, fontFamily: 'PlusJakartaSans-Medium' },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#050B14', borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.06)', zIndex: 20 },
-  pipFooter: {
-    position: 'absolute',
-    bottom: 8,
-    left: 12,
-    right: 12,
-    backgroundColor: 'rgba(5, 11, 20, 0.88)',
-    borderRadius: 24,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    zIndex: 25,
-    elevation: 8,
-  },
-  pipControlsDock: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    width: '100%',
-  },
-  pipControlBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  pipControlBtnMuted: {
-    backgroundColor: 'rgba(239, 68, 68, 0.22)',
-    borderColor: 'rgba(239, 68, 68, 0.45)',
-  },
-  pipLeaveBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.25)',
-    borderColor: 'rgba(239, 68, 68, 0.5)',
-  },
   controlsDock: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingTop: 10 },
   controlItem: { alignItems: 'center', gap: 6 },
   controlIconBox: { width: 48, height: 48, borderRadius: 16, backgroundColor: 'rgba(255, 255, 255, 0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)' },

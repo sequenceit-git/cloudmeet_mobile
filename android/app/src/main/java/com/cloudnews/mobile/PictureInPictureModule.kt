@@ -176,6 +176,21 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
         }
     }
 
+    @ReactMethod
+    fun maximize() {
+        val activity = currentActivity ?: return
+        activity.runOnUiThread {
+            try {
+                val intent = android.content.Intent(activity, activity.javaClass).apply {
+                    flags = android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+                }
+                activity.startActivity(intent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     // Required for React Native event emitter listener registration
     @ReactMethod
     fun addListener(eventName: String) {}

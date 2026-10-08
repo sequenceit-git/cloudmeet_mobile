@@ -51,6 +51,19 @@ export async function enterPictureInPicture(width: number = 9, height: number = 
 }
 
 /**
+ * Expands/maximizes the Android activity from Picture-in-Picture back to full-screen.
+ */
+export function maximizeFromPip(): void {
+  if (Platform.OS === 'android' && PictureInPictureModule?.maximize) {
+    try {
+      PictureInPictureModule.maximize();
+    } catch (err) {
+      console.warn('[PiP] maximize error:', err);
+    }
+  }
+}
+
+/**
  * Synchronizes meeting and screen share status with the native Android layer.
  * When in meeting and screen share is OFF -> PiP is enabled & auto-enter is active.
  * When screen share is ON -> PiP is disabled so user can present other apps cleanly.
