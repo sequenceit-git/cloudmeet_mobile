@@ -10,6 +10,7 @@ import {
   releaseScreenShareWakeLock,
 } from '../utils/wakeLock';
 import { resolveLiveKitServerUrl } from '../config/env';
+import { setPipConfig } from '../utils/pip';
 
 export type ConnectionLifecycleState =
   | 'idle'
@@ -80,6 +81,15 @@ export const MeetingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     })();
   }, [activeMeeting]);
+
+  // Synchronize PiP capability: PiP auto-enter is ONLY enabled while on an active video call or meeting
+  useEffect(() => {
+    if (activeMeeting) {
+      setPipConfig(true, false);
+    } else {
+      setPipConfig(false, false);
+    }
+  }, [Boolean(activeMeeting)]);
 
   const videoPreset = useMemo(() => {
     const is4K = meetingSettings.videoQuality === '4k' && Boolean(activeMeeting?.isHost);
@@ -428,6 +438,7 @@ export const MeetingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return sanitizedSession;
     });
     setIsMinimized(false);
+    setPipConfig(true, false);
     startMeetingForegroundService(sanitizedSession.meetingTitle || sanitizedSession.roomName);
   }, []);
 
@@ -459,6 +470,7 @@ export const MeetingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsReconnectingUI(false);
     releaseScreenShareWakeLock();
     stopMeetingForegroundService();
+    setPipConfig(false, false);
 
     if (room) {
       try {
@@ -487,6 +499,7 @@ export const MeetingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.warn('[MeetingContext] Error during endMeeting cleanup:', e);
       resetToOnboarding();
     } finally {
+      setPipConfig(false, false);
       setActiveMeeting(null);
       setIsMinimized(false);
     }

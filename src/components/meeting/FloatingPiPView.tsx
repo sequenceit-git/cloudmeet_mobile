@@ -28,6 +28,7 @@ interface FloatingPiPViewProps {
   meetingTitle?: string;
   onMaximize: () => void;
   onLeave: () => void;
+  isNativePip?: boolean;
 }
 
 import { getInitials, getAvatarTextStyle } from '../../utils/helpers';
@@ -37,6 +38,7 @@ export const FloatingPiPView: React.FC<FloatingPiPViewProps> = ({
   meetingTitle,
   onMaximize,
   onLeave,
+  isNativePip = false,
 }) => {
   const insets = useSafeAreaInsets();
   const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare]);
@@ -103,13 +105,14 @@ export const FloatingPiPView: React.FC<FloatingPiPViewProps> = ({
   const currentPos = useRef({ x: initialX, y: initialY });
 
   useEffect(() => {
+    if (isNativePip) return;
     const id = pan.addListener((value) => {
       currentPos.current = value;
     });
     return () => {
       pan.removeListener(id);
     };
-  }, [pan]);
+  }, [pan, isNativePip]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -150,6 +153,69 @@ export const FloatingPiPView: React.FC<FloatingPiPViewProps> = ({
       },
     })
   ).current;
+
+  // In native Android PiP mode, render a clean full-window card (identical to in-app mini window layout)
+  if (isNativePip) {
+    return (
+      <View style={styles.nativePipContainer}>
+        <Pressable style={styles.pipPressable} onPress={onMaximize}>
+          {/* Video Track or Avatar */}
+          {activeTrack ? (
+            <VideoTrack
+              trackRef={activeTrack}
+              style={styles.pipVideo}
+              objectFit="cover"
+              mirror={Boolean(activeTrack.participant.isLocal)}
+              zOrder={1}
+            />
+          ) : (
+            <View style={styles.pipAvatarContainer}>
+              <View style={[styles.pipAvatarCircle, { width: 56, height: 56, borderRadius: 28 }]}>
+                <Text style={[styles.pipAvatarText, getAvatarTextStyle(participantName, 20)]}>
+                  {getInitials(participantName)}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Top Floating Controls */}
+          <View style={styles.pipTopBar}>
+            <TouchableOpacity
+              style={[styles.pipCloseBtn, { width: 26, height: 26, borderRadius: 13 }]}
+              onPress={onLeave}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={14} color="#FFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.pipExpandBadge, { width: 26, height: 26, borderRadius: 13 }]}
+              onPress={onMaximize}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Maximize2 size={13} color="#00A8FF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Bottom Floating Info Pill */}
+          <View style={styles.pipBottomBar}>
+            <View style={styles.pipInfoPill}>
+              {isMicMuted ? (
+                <MicOff size={11} color="#ef4444" style={styles.pipMicIcon} />
+              ) : (
+                <Mic size={11} color="#10b981" style={styles.pipMicIcon} />
+              )}
+              <Text style={styles.pipNameText} numberOfLines={1} ellipsizeMode="tail">
+                {participantName}
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <Animated.View
@@ -216,6 +282,14 @@ export const FloatingPiPView: React.FC<FloatingPiPViewProps> = ({
 };
 
 const styles = StyleSheet.create({
+  nativePipContainer: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#050B14',
+    overflow: 'hidden',
+    zIndex: 99999,
+  },
   pipContainer: {
     position: 'absolute',
     top: 0,

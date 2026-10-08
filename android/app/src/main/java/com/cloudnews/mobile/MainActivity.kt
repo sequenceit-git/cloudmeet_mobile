@@ -121,6 +121,9 @@ class MainActivity : ReactActivity() {
     // Manifest must not lock portrait: a fixed orientation makes Samsung cancel
     // PiP immediately (true then false) and the meeting looks paused.
     requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+
+    // Ensure PiP auto-enter is strictly disabled until an active meeting begins
+    PictureInPictureModule.applyPipParams(this)
   }
 
   /**

@@ -6,6 +6,7 @@ import {
   Platform,
   PermissionsAndroid,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { LiveKitRoom } from '@livekit/react-native';
 import { DisconnectReason } from 'livekit-client';
@@ -15,7 +16,7 @@ import { MeetingRoomContent } from '../../screens/meeting/MeetingRoomScreen';
 import { FloatingPiPView } from './FloatingPiPView';
 import { endMeeting as endMeetingApi, leaveMeeting as leaveMeetingApi } from '../../services/api';
 import storage from '../../services/storage';
-import { isInPipMode, addPipListener } from '../../utils/pip';
+import { isInPipMode, addPipListener, maximizeFromPip } from '../../utils/pip';
 
 // Ensure LiveKit WebRTC globals are ready
 initLiveKit();
@@ -62,6 +63,7 @@ export const GlobalMeetingOverlay: React.FC = () => {
   const [hasCameraPermission, setHasCameraPermission] = useState(true);
   const [hasAudioPermission, setHasAudioPermission] = useState(true);
   const [isNativePip, setIsNativePip] = useState(false);
+  const [frame, setFrame] = useState(() => Dimensions.get('window'));
   const activeMeetingKeyRef = useRef<string | null>(null);
   const isUserLeavingRef = useRef(false);
 
@@ -69,6 +71,24 @@ export const GlobalMeetingOverlay: React.FC = () => {
     isInPipMode().then(setIsNativePip).catch(() => {});
     return addPipListener(setIsNativePip);
   }, []);
+
+  useEffect(() => {
+    const sub = Dimensions.addEventListener('change', ({ window }) => {
+      setFrame(window);
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Dual-layer PiP detection: Native OS PiP event OR physical window size shrank to mini window
+  const isPipDimensions = frame.width > 0 && frame.width < 320 && frame.height < 520;
+  const isPipActive = isNativePip || isPipDimensions;
+
+  const handleMaximize = useCallback(() => {
+    if (isPipActive) {
+      maximizeFromPip();
+    }
+    maximizeMeeting();
+  }, [isPipActive, maximizeMeeting]);
 
   // Audio session and permission initialization per unique meeting session
   useEffect(() => {
@@ -188,17 +208,17 @@ export const GlobalMeetingOverlay: React.FC = () => {
         onDisconnected={handleDisconnected}
         onError={handleError}
       >
-        {/* Active In-App View */}
+        {/* Full-Screen Meeting Room View (foreground only) */}
         <View
           style={[
             StyleSheet.absoluteFillObject,
             {
-              display: isMinimized && !isNativePip ? 'none' : 'flex',
-              zIndex: isMinimized && !isNativePip ? 0 : 9999,
+              display: !isMinimized && !isPipActive ? 'flex' : 'none',
+              zIndex: !isMinimized && !isPipActive ? 9999 : 0,
               backgroundColor: '#050B14',
             },
           ]}
-          pointerEvents={isMinimized && !isNativePip ? 'none' : 'auto'}
+          pointerEvents={!isMinimized && !isPipActive ? 'auto' : 'none'}
         >
           <MeetingRoomContent
             roomName={activeMeeting.roomName}
@@ -209,7 +229,7 @@ export const GlobalMeetingOverlay: React.FC = () => {
             hostSessionToken={activeMeeting.hostSessionToken}
             onLeave={endMeeting}
             onMinimize={minimizeMeeting}
-            isMinimized={isMinimized && !isNativePip}
+            isMinimized={isMinimized}
             muteAudioParam={activeMeeting.muteAudio}
             muteVideoParam={activeMeeting.muteVideo}
             hasAudioPermission={hasAudioPermission}
@@ -217,13 +237,14 @@ export const GlobalMeetingOverlay: React.FC = () => {
           />
         </View>
 
-        {/* Floating PiP View when minimized in-app (not in native OS PiP) */}
-        {isMinimized && !isNativePip && (
+        {/* Mini PiP View: shown when in-app minimized OR when in native OS PiP */}
+        {(isMinimized || isPipActive) && (
           <FloatingPiPView
             roomName={activeMeeting.roomName}
             meetingTitle={activeMeeting.meetingTitle}
-            onMaximize={maximizeMeeting}
+            onMaximize={handleMaximize}
             onLeave={handleFloatingLeave}
+            isNativePip={isPipActive}
           />
         )}
       </LiveKitRoom>
