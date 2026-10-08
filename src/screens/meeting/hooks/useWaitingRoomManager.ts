@@ -19,6 +19,7 @@ export interface UseWaitingRoomManagerProps {
   isMicMuted: boolean;
   isCameraOff: boolean;
   setIsMicMuted: (muted: boolean) => void;
+  isUserLeavingRef?: React.MutableRefObject<boolean>;
   t: (key: string, options?: any) => string;
 }
 
@@ -36,12 +37,18 @@ export const useWaitingRoomManager = ({
   isMicMuted,
   isCameraOff,
   setIsMicMuted,
+  isUserLeavingRef: externalLeavingRef,
   t,
 }: UseWaitingRoomManagerProps) => {
   const [waitingGuests, setWaitingGuests] = useState<{ identity: string; name: string; requestedAt: number }[]>([]);
   const [latestWaitingGuest, setLatestWaitingGuest] = useState<{ identity: string; name: string; requestedAt: number } | null>(null);
   const admittedGuestIdsRef = useRef<Set<string>>(new Set());
   const promptDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const internalLeavingRef = useRef<boolean>(false);
+  const isUserLeavingRef = externalLeavingRef || internalLeavingRef;
+  const isEndingNoticeShownRef = useRef<boolean>(false);
+  const isRemovedNoticeShownRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (latestWaitingGuest) {
@@ -130,9 +137,7 @@ export const useWaitingRoomManager = ({
     setLatestWaitingGuest(prev => (prev?.identity === guestIdentity ? null : prev));
   }, [localParticipant]);
 
-  const isEndingNoticeShownRef = useRef<boolean>(false);
-  const isRemovedNoticeShownRef = useRef<boolean>(false);
-  const isUserLeavingRef = useRef<boolean>(false);
+
 
   const handleMeetingEndedNotice = useCallback((customMsg?: string) => {
     if (isHost || isEndingNoticeShownRef.current) return;

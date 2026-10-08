@@ -272,12 +272,17 @@ export const MeetingRoomContent: React.FC<{
     };
   }, [room]);
 
+  const isUserLeavingRef = useRef<boolean>(false);
+
   // Synchronize mic track state bidirectionally with localParticipant
   useEffect(() => {
     if (!localParticipant) return;
 
     const syncMic = (pub?: any) => {
       if (pub && pub.source && pub.source !== Track.Source.Microphone) {
+        return;
+      }
+      if (!room || room.state !== ConnectionState.Connected || isUserLeavingRef.current) {
         return;
       }
       const enabled = localParticipant.isMicrophoneEnabled;
@@ -303,7 +308,7 @@ export const MeetingRoomContent: React.FC<{
       localParticipant.off(ParticipantEvent.LocalTrackPublished, syncMic);
       localParticipant.off(ParticipantEvent.LocalTrackUnpublished, syncMic);
     };
-  }, [localParticipant]);
+  }, [localParticipant, room]);
 
   // Synchronize camera track state bidirectionally with localParticipant
   useEffect(() => {
@@ -311,6 +316,9 @@ export const MeetingRoomContent: React.FC<{
 
     const syncCamera = (pub?: any) => {
       if (pub && pub.source && pub.source !== Track.Source.Camera) {
+        return;
+      }
+      if (!room || room.state !== ConnectionState.Connected || isUserLeavingRef.current) {
         return;
       }
       const enabled = localParticipant.isCameraEnabled;
@@ -336,7 +344,7 @@ export const MeetingRoomContent: React.FC<{
       localParticipant.off(ParticipantEvent.LocalTrackPublished, syncCamera);
       localParticipant.off(ParticipantEvent.LocalTrackUnpublished, syncCamera);
     };
-  }, [localParticipant]);
+  }, [localParticipant, room]);
 
   // Initial user choice sync
   useEffect(() => {
@@ -440,6 +448,7 @@ export const MeetingRoomContent: React.FC<{
     isMicMuted,
     isCameraOff,
     setIsMicMuted,
+    isUserLeavingRef,
     t,
   });
 
