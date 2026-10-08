@@ -204,9 +204,14 @@ class MainActivity : ReactActivity() {
           TAG,
           "[ON_USER_LEAVE_HINT] taskId=$taskId, instance=${System.identityHashCode(this)}, canEnterPip=$canPip, alreadyInPip=$alreadyInPip"
       )
-      if (!alreadyInPip && canPip && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+      if (canPip) {
+          // Immediately notify JS and native view hierarchy that PiP is entering
+          // BEFORE Android animates and snapshots the window for the mini window!
           PictureInPictureModule.suppressChrome(this)
-          PictureInPictureModule.enterPipMode(this)
+          PictureInPictureModule.onModeChanged(this, true)
+          if (!alreadyInPip && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+              PictureInPictureModule.enterPipMode(this)
+          }
       }
       super.onUserLeaveHint()
   }

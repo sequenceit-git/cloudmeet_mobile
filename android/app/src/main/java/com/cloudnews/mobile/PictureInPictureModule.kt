@@ -280,7 +280,7 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
     fun removeListeners(count: Int) {}
 
     private fun emit(inPip: Boolean) {
-        reactApplicationContext.runOnJSQueueThread {
+        val doEmit = Runnable {
             try {
                 val params = Arguments.createMap().apply {
                     putBoolean("isInPictureInPictureMode", inPip)
@@ -291,6 +291,11 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
             } catch (e: Exception) {
                 Log.w(TAG, "emit: ${e.message}")
             }
+        }
+        if (reactApplicationContext.isOnJSQueueThread) {
+            doEmit.run()
+        } else {
+            reactApplicationContext.runOnJSQueueThread(doEmit)
         }
     }
 }

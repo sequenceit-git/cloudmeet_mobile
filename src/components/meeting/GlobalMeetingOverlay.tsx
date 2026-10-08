@@ -7,6 +7,9 @@ import {
   PermissionsAndroid,
   Alert,
   Dimensions,
+  AppState,
+  AppStateStatus,
+  LayoutChangeEvent,
 } from 'react-native';
 import { LiveKitRoom } from '@livekit/react-native';
 import { DisconnectReason } from 'livekit-client';
@@ -77,6 +80,27 @@ export const GlobalMeetingOverlay: React.FC = () => {
       setFrame(window);
     });
     return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    const handleAppState = (next: AppStateStatus) => {
+      if (next === 'background' || next === 'inactive') {
+        isInPipMode().then(inPip => {
+          if (inPip) setIsNativePip(true);
+        }).catch(() => {});
+      } else if (next === 'active') {
+        isInPipMode().then(setIsNativePip).catch(() => {});
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
+  }, []);
+
+  const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (width > 0 && height > 0) {
+      setFrame(prev => ({ ...prev, width: Math.round(width), height: Math.round(height) }));
+    }
   }, []);
 
   // Dual-layer PiP detection: Native OS PiP event OR physical window size shrank to mini window
@@ -195,7 +219,11 @@ export const GlobalMeetingOverlay: React.FC = () => {
   }
 
   return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+    <View
+      style={StyleSheet.absoluteFillObject}
+      pointerEvents="box-none"
+      onLayout={handleContainerLayout}
+    >
       {/* Primary Video Conference Room */}
       <LiveKitRoom
         serverUrl={activeMeeting.serverUrl}
