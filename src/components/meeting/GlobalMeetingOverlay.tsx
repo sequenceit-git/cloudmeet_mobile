@@ -64,9 +64,10 @@ export const GlobalMeetingOverlay: React.FC = () => {
   const [hasCameraPermission, setHasCameraPermission] = useState(true);
   const [hasAudioPermission, setHasAudioPermission] = useState(true);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const [currentAppState, setCurrentAppState] = useState(AppState.currentState);
   const [isNativePipState, setIsNativePipState] = useState(false);
   const isWindowPip = windowWidth < 300 || windowHeight < 400;
-  const isNativePip = isNativePipState || isWindowPip;
+  const isNativePip = isNativePipState || isWindowPip || currentAppState !== 'active';
   const activeMeetingKeyRef = useRef<string | null>(null);
   const isUserLeavingRef = useRef(false);
 
@@ -80,7 +81,8 @@ export const GlobalMeetingOverlay: React.FC = () => {
       if (inMode) setIsNativePipState(true);
     }).catch(() => {});
 
-    const appStateSub = AppState.addEventListener('change', () => {
+    const appStateSub = AppState.addEventListener('change', nextState => {
+      setCurrentAppState(nextState);
       isInPipMode().then(inMode => {
         setIsNativePipState(inMode);
       }).catch(() => {});

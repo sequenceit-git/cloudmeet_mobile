@@ -1366,10 +1366,11 @@ export const MeetingRoomContent: React.FC<{
   }, [isHostParam, meetingCode, performHostHeartbeat]);
 
   const { activeMeeting, isReconnectingUI, manualReconnect } = useMeeting();
+  const [currentAppState, setCurrentAppState] = useState<AppStateStatus>(AppState.currentState);
   const [isNativePipState, setIsNativePipState] = useState<boolean>(false);
-  // Physical certainty: A smartphone screen width is always >= 320dp. Any window < 300dp is guaranteed to be an Android Picture-in-Picture window.
+  // Physical certainty: A smartphone screen width is always >= 320dp. Any window < 300dp or non-active AppState is guaranteed to be in PiP / background.
   const isWindowPip = windowWidth < 300 || windowHeight < 400;
-  const isNativePip = isNativePipState || isWindowPip;
+  const isNativePip = isNativePipState || isWindowPip || currentAppState !== 'active';
   const isUserLeavingRef = useRef<boolean>(false);
 
   // Subscribe to LiveKit room reconnection to re-sync local audio/video publish state if active
@@ -1410,7 +1411,8 @@ export const MeetingRoomContent: React.FC<{
       if (inMode) setIsNativePipState(true);
     }).catch(() => {});
 
-    const appStateSub = AppState.addEventListener('change', () => {
+    const appStateSub = AppState.addEventListener('change', nextState => {
+      setCurrentAppState(nextState);
       isInPipMode().then(inMode => {
         setIsNativePipState(inMode);
       }).catch(() => {});
