@@ -99,12 +99,26 @@ export const GlobalMeetingOverlay: React.FC = () => {
   const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     if (width > 0 && height > 0) {
-      setFrame(prev => ({ ...prev, width: Math.round(width), height: Math.round(height) }));
+      const roundedW = Math.round(width);
+      const roundedH = Math.round(height);
+      setFrame(prev => {
+        if (prev.width === roundedW && prev.height === roundedH) return prev;
+        return { ...prev, width: roundedW, height: roundedH };
+      });
+      if (roundedW < 320 && roundedH < 520) {
+        setIsNativePip(true);
+      } else if (roundedW >= 320 && roundedH >= 520) {
+        isInPipMode().then(inPip => {
+          if (!inPip) setIsNativePip(false);
+        }).catch(() => {});
+      }
     }
   }, []);
 
   // Dual-layer PiP detection: Native OS PiP event OR physical window size shrank to mini window
-  const isPipDimensions = frame.width > 0 && frame.width < 320 && frame.height < 520;
+  const currentDims = Dimensions.get('window');
+  const isDirectPipDimensions = currentDims.width > 0 && currentDims.width < 320 && currentDims.height < 520;
+  const isPipDimensions = (frame.width > 0 && frame.width < 320 && frame.height < 520) || isDirectPipDimensions;
   const isPipActive = isNativePip || isPipDimensions;
 
   const handleMaximize = useCallback(() => {
@@ -238,6 +252,7 @@ export const GlobalMeetingOverlay: React.FC = () => {
       >
         {/* Full-Screen Meeting Room View (foreground only) */}
         <View
+          nativeID="meeting-fullscreen"
           style={[
             StyleSheet.absoluteFillObject,
             {
@@ -258,6 +273,7 @@ export const GlobalMeetingOverlay: React.FC = () => {
             onLeave={endMeeting}
             onMinimize={minimizeMeeting}
             isMinimized={isMinimized}
+            isPipActive={isPipActive}
             muteAudioParam={activeMeeting.muteAudio}
             muteVideoParam={activeMeeting.muteVideo}
             hasAudioPermission={hasAudioPermission}

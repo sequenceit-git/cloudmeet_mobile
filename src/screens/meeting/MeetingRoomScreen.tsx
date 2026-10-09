@@ -86,6 +86,8 @@ const ScreenCapturePickerViewComponent: any = Platform.OS === 'ios'
     })()
   : null;
 
+const meetingStartTimes = new Map<string, number>();
+
 export const MeetingRoomContent: React.FC<{
   roomName: string;
   meetingCode?: string;
@@ -96,6 +98,7 @@ export const MeetingRoomContent: React.FC<{
   onLeave: () => void;
   onMinimize?: () => void;
   isMinimized?: boolean;
+  isPipActive?: boolean;
   muteAudioParam?: boolean;
   muteVideoParam?: boolean;
   hasAudioPermission?: boolean;
@@ -110,6 +113,7 @@ export const MeetingRoomContent: React.FC<{
   onLeave,
   onMinimize,
   isMinimized = false,
+  isPipActive: isPipActiveProp,
   muteAudioParam = false,
   muteVideoParam = false,
   hasAudioPermission = true,
@@ -138,11 +142,12 @@ export const MeetingRoomContent: React.FC<{
   const windowHeight = frame.height;
 
   // Dual-layer PiP detection:
-  // 1. Explicit native event bridge (addPipListener & isInPipMode)
-  // 2. Window dimension heuristic: in Android PiP mode, window width is typically 150-280dp
+  // 1. Explicit prop from GlobalMeetingOverlay
+  // 2. Explicit native event bridge (addPipListener & isInPipMode)
+  // 3. Window dimension heuristic: in Android PiP mode, window width is typically 150-280dp
   //    and height is 250-450dp, whereas any phone in normal full-screen mode has width >= 320dp and height >= 520dp.
   const isPipDimensions = frame.width > 0 && frame.width < 320 && frame.height < 520;
-  const isNativePip = isNativePipState || isPipDimensions;
+  const isNativePip = Boolean(isPipActiveProp) || isNativePipState || isPipDimensions;
 
   const applyFrameSize = useCallback((width: number, height: number) => {
     if (width <= 0 || height <= 0) return;
@@ -204,13 +209,19 @@ export const MeetingRoomContent: React.FC<{
     hostSessionToken,
   });
 
-  const [callDuration, setCallDuration] = useState(0);
-  const callStartTimeRef = useRef(Date.now());
+  if (!meetingStartTimes.has(roomName)) {
+    meetingStartTimes.set(roomName, Date.now());
+  }
+  const callStartTime = meetingStartTimes.get(roomName) || Date.now();
+
+  const [callDuration, setCallDuration] = useState(() =>
+    Math.max(0, Math.floor((Date.now() - callStartTime) / 1000))
+  );
 
   useEffect(() => {
     // Wall-clock synced timer: calculates real elapsed seconds without pausing or drift in background/PiP
     const updateDuration = () => {
-      const elapsed = Math.max(0, Math.floor((Date.now() - callStartTimeRef.current) / 1000));
+      const elapsed = Math.max(0, Math.floor((Date.now() - callStartTime) / 1000));
       setCallDuration(elapsed);
     };
 
@@ -227,7 +238,7 @@ export const MeetingRoomContent: React.FC<{
       clearInterval(timer);
       sub.remove();
     };
-  }, []);
+  }, [callStartTime]);
 
   // Audio Device routing hook
   const {
@@ -929,6 +940,12 @@ export const MeetingRoomContent: React.FC<{
         />
       </View>
     );
+  }
+
+  // When in native PiP mode, GlobalMeetingOverlay renders FloatingPiPView.
+  // MeetingRoomContent must completely return null to prevent duplicate surfaces and layout overlap!
+  if (isNativePip) {
+    return null;
   }
 
   return (

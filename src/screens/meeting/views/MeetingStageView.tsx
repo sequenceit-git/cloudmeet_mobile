@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useMemo, useCallback } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, LayoutChangeEvent } from 'react-native';
 import { EdgeInsets } from 'react-native-safe-area-context';
 import { Participant, TrackPublication } from 'livekit-client';
 import { styles } from '../meetingRoomStyles';
 import { ScreenShareStage } from '../ScreenShareStage';
 import { ParticipantCard } from '../ParticipantCard';
+import { setPipSourceRect } from '../../../utils/pip';
 
 export interface GridLayoutInfo {
   isScrollable: boolean;
@@ -59,6 +60,13 @@ export const MeetingStageView: React.FC<MeetingStageViewProps> = ({
   onSwitchCamera,
   onParticipantPress,
 }) => {
+  const handleStageLayout = useCallback((e: LayoutChangeEvent) => {
+    const { x, y, width, height } = e.nativeEvent.layout;
+    if (width > 0 && height > 0) {
+      setPipSourceRect(x, y, width, height);
+    }
+  }, []);
+
   // When in native PiP mode, focus on the primary participant / speaker as a full card
   const primaryPipParticipant = useMemo(() => {
     if (pinnedParticipantIdentity) {
@@ -78,6 +86,7 @@ export const MeetingStageView: React.FC<MeetingStageViewProps> = ({
   }, [activeMeetingParticipants, pinnedParticipantIdentity, localParticipant]);
   return (
     <View
+      onLayout={handleStageLayout}
       style={[
         styles.gridContainer,
         (isFullScreen || isNativePip)

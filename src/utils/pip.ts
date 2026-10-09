@@ -90,6 +90,20 @@ export function setPipConfig(inMeeting: boolean, isScreenSharing: boolean): void
 }
 
 /**
+ * Updates the native Android source rect hint for seamless PiP entry zoom animation
+ * matching the exact bounds of the active video stage (Google Meet / WhatsApp style).
+ */
+export function setPipSourceRect(x: number, y: number, width: number, height: number): void {
+  if (Platform.OS === 'android' && PictureInPictureModule?.setSourceRect) {
+    try {
+      PictureInPictureModule.setSourceRect(x, y, width, height);
+    } catch (err) {
+      console.warn('[PiP] setSourceRect error:', err);
+    }
+  }
+}
+
+/**
  * Disables PiP immediately before requesting Android MediaProjection permissions.
  * Prevents OS from auto-entering PiP mode when the system recording prompt appears.
  */

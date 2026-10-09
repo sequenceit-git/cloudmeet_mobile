@@ -13,6 +13,7 @@ import java.lang.ref.WeakReference
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
+import com.facebook.react.ReactApplication
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
@@ -30,6 +31,22 @@ class MainActivity : ReactActivity() {
   }
 
   private var userLeaveHintAtMs: Long = 0L
+
+  /**
+   * Keep React Native host running smoothly when entering or in Picture-in-Picture mode.
+   * By default, React Native suspends JS execution, event delivery, and timers on onHostPause().
+   * In PiP, the Activity remains visible on screen, so React host must stay resumed.
+   */
+  private fun resumeReactHostForPip() {
+      try {
+          (application as? ReactApplication)?.reactNativeHost?.reactInstanceManager?.let { manager ->
+              manager.onHostResume(this, this)
+              Log.d(TAG, "[RESUME_REACT_HOST_SUCCESS] React host resumed for PiP")
+          }
+      } catch (t: Throwable) {
+          Log.w(TAG, "[RESUME_REACT_HOST_FAILED] ${t.message}")
+      }
+  }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     val currentTaskId = taskId
@@ -156,17 +173,14 @@ class MainActivity : ReactActivity() {
 
   override fun onPause() {
       val inPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) isInPictureInPictureMode else false
-      Log.d(TAG, "[ON_PAUSE] taskId=$taskId, instance=${System.identityHashCode(this)}, inPip=$inPip")
+      val enteringPip = PictureInPictureModule.canEnterPip() && (System.currentTimeMillis() - userLeaveHintAtMs < 3000L)
+      Log.d(TAG, "[ON_PAUSE] taskId=$taskId, instance=${System.identityHashCode(this)}, inPip=$inPip, enteringPip=$enteringPip")
       super.onPause()
-      if (inPip) {
+      if (inPip || enteringPip) {
           // React Native by default pauses JS execution & timers on onHostPause().
-          // When in Picture-in-Picture mode, the Activity is still visible to the user.
+          // When entering or in Picture-in-Picture mode, the Activity is still visible to the user.
           // We resume the React host so JS timers (call duration), UI updates, and LiveKit tracks continue running smoothly.
-          try {
-              reactActivityDelegate.onResume()
-          } catch (t: Throwable) {
-              Log.e(TAG, "[ON_PAUSE_RESUME_PIP_FAILED] ${t.message}")
-          }
+          resumeReactHostForPip()
       }
   }
 
@@ -209,6 +223,7 @@ class MainActivity : ReactActivity() {
           // BEFORE Android animates and snapshots the window for the mini window!
           PictureInPictureModule.suppressChrome(this)
           PictureInPictureModule.onModeChanged(this, true)
+          resumeReactHostForPip()
           if (!alreadyInPip && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
               PictureInPictureModule.enterPipMode(this)
           }
@@ -231,10 +246,12 @@ class MainActivity : ReactActivity() {
           "[ON_PIP_MODE_CHANGED] taskId=$taskId, instance=${System.identityHashCode(this)}, isInPictureInPictureMode=$isInPictureInPictureMode"
       )
       if (isInPictureInPictureMode) {
-          try {
-              reactActivityDelegate.onResume()
-          } catch (t: Throwable) {
-              Log.e(TAG, "[PIP_RESUME_FAILED] ${t.message}")
+          resumeReactHostForPip()
+          window.decorView.post {
+              try {
+                  window.decorView.requestLayout()
+                  window.decorView.invalidate()
+              } catch (t: Throwable) {}
           }
       }
       PictureInPictureModule.onModeChanged(this, isInPictureInPictureMode)

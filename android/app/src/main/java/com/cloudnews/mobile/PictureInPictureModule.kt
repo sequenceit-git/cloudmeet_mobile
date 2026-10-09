@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -35,6 +36,7 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
         const val EVENT_PIP_MODE_CHANGED = "onPipModeChanged"
         private const val TAG = "PiP-Module"
         private const val CHROME_ID = "meeting-chrome"
+        private const val FULLSCREEN_ID = "meeting-fullscreen"
 
         @Volatile
         var isInMeeting: Boolean = false
@@ -51,10 +53,17 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
         @Volatile
         private var entering: Boolean = false
 
+        @Volatile
+        private var sourceRect: Rect? = null
+
         private var instance: PictureInPictureModule? = null
         private val mainHandler = Handler(Looper.getMainLooper())
 
         fun canEnterPip(): Boolean = isInMeeting && !isScreenSharing && !isScreenSharingStarting
+
+        fun setSourceRectHint(rect: Rect?) {
+            sourceRect = rect
+        }
 
         fun suppressChrome(activity: Activity?) {
             if (activity == null || activity.isFinishing || activity.isDestroyed) return
@@ -110,6 +119,11 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
                     builder.setAutoEnterEnabled(canEnterPip())
                     builder.setSeamlessResizeEnabled(true)
                 }
+                sourceRect?.let { rect ->
+                    if (rect.width() > 0 && rect.height() > 0) {
+                        builder.setSourceRectHint(rect)
+                    }
+                }
                 val entered = activity.enterPictureInPictureMode(builder.build())
                 Log.d(TAG, "enter result=$entered")
                 if (!entered) entering = false
@@ -157,6 +171,11 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
                     builder.setAutoEnterEnabled(true)
                     builder.setSeamlessResizeEnabled(true)
                 }
+                sourceRect?.let { rect ->
+                    if (rect.width() > 0 && rect.height() > 0) {
+                        builder.setSourceRectHint(rect)
+                    }
+                }
                 activity.setPictureInPictureParams(builder.build())
             } catch (e: Exception) {
                 Log.w(TAG, "setPictureInPictureParams: ${e.message}")
@@ -183,7 +202,7 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
 
         private fun walk(view: View, hidden: Boolean) {
             val tag = view.getTag(com.facebook.react.R.id.view_tag_native_id) as? String
-            if (tag != null && (tag == CHROME_ID || tag.startsWith("$CHROME_ID-"))) {
+            if (tag != null && (tag == CHROME_ID || tag.startsWith("$CHROME_ID-") || tag == FULLSCREEN_ID)) {
                 view.visibility = if (hidden) View.GONE else View.VISIBLE
             }
             if (view is ViewGroup) {
@@ -238,6 +257,20 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
     }
 
     @ReactMethod
+    fun setSourceRect(x: Double, y: Double, width: Double, height: Double) {
+        val density = reactApplicationContext.resources.displayMetrics.density
+        val left = (x * density).toInt()
+        val top = (y * density).toInt()
+        val w = (width * density).toInt()
+        val h = (height * density).toInt()
+        if (w > 0 && h > 0) {
+            setSourceRectHint(Rect(left, top, left + w, top + h))
+            val activity = currentActivity ?: return
+            activity.runOnUiThread { applyPipParams(activity) }
+        }
+    }
+
+    @ReactMethod
     fun isPipSupported(promise: Promise) {
         val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             reactApplicationContext.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
@@ -247,7 +280,7 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
     @ReactMethod
     fun isInPipMode(promise: Promise) {
         val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
-            (currentActivity?.isInPictureInPictureMode == true)
+            ((currentActivity?.isInPictureInPictureMode == true) || entering)
         promise.resolve(inPip)
     }
 
@@ -284,10 +317,12 @@ class PictureInPictureModule(reactContext: ReactApplicationContext) : ReactConte
             try {
                 val params = Arguments.createMap().apply {
                     putBoolean("isInPictureInPictureMode", inPip)
+                    putBoolean("inPictureInPictureMode", inPip)
                 }
-                reactApplicationContext
+                val emitter = reactApplicationContext
                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    .emit(EVENT_PIP_MODE_CHANGED, params)
+                emitter.emit(EVENT_PIP_MODE_CHANGED, params)
+                emitter.emit("onPipModeChanged", inPip)
             } catch (e: Exception) {
                 Log.w(TAG, "emit: ${e.message}")
             }
