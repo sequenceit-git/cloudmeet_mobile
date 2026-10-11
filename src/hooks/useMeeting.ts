@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createMeeting, guestLogin, joinMeetingRoom } from '../services/api';
 import { initLiveKit, startAudioSession, stopAudioSession } from '../services/livekit';
 import storage, { StorageKeys } from '../services/storage';
+import { resolveLiveKitServerUrl } from '../config/env';
 
 export function useMeeting() {
   const [state, setState] = useState({
@@ -38,7 +39,7 @@ export function useMeeting() {
         isConnecting: false,
         isConnected: true,
         token: response.data.livekit_token || response.data.token || null,
-        serverUrl: response.data.livekit_url || null,
+        serverUrl: resolveLiveKitServerUrl(response.data.livekit_url) || null,
         roomName: response.data.room_name || response.data.meeting?.room_name || '',
         error: null,
       });

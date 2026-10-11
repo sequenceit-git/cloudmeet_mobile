@@ -27,7 +27,7 @@ import GradientButton from '../components/common/GradientButton';
 import { RootStackNavigationProp, RootStackRouteProp } from '../navigation/types';
 import { guestLogin, joinMeeting, validateMeeting } from '../services/api';
 import storage, { StorageKeys } from '../services/storage';
-import { ENV } from '../config/env';
+import { ENV, resolveLiveKitServerUrl } from '../config/env';
 import { useTranslation } from '../hooks/useTranslation';
 import { useMeetingContext } from '../context/MeetingContext';
 import { useTheme } from '../context/ThemeContext';
@@ -164,7 +164,7 @@ export const JoinScreen: React.FC = () => {
             console.log('[Join] Host has arrived! Connecting to LiveKit room...');
             clearWaitingState();
 
-            const resolvedServerUrl = (res.data as any).livekit_url || ENV.LIVEKIT_WS_URL;
+            const resolvedServerUrl = resolveLiveKitServerUrl((res.data as any).livekit_url) || ENV.LIVEKIT_WS_URL;
             const resolvedRoomName = res.data.room_name;
             const resolvedMeetingTitle =
               (res.data as any).title ||
@@ -450,7 +450,7 @@ export const JoinScreen: React.FC = () => {
       }
 
       if (meetingRes?.success && meetingRes.data?.livekit_token) {
-        const resolvedServerUrl = (meetingRes.data as any).livekit_url || ENV.LIVEKIT_WS_URL;
+        const resolvedServerUrl = resolveLiveKitServerUrl((meetingRes.data as any).livekit_url) || ENV.LIVEKIT_WS_URL;
         const resolvedRoomName = meetingRes.data.room_name;
         const resolvedMeetingTitle =
           (meetingRes.data as any).title ||

@@ -42,7 +42,7 @@ import { getMeetingInviteLink, getScheduledMeetings, ScheduledMeeting, deleteMee
 import { useTranslation } from '../hooks/useTranslation';
 import storage, { StorageKeys, getPersonalMeetingCode } from '../services/storage';
 import { useTheme } from '../context/ThemeContext';
-import { ENV } from '../config/env';
+import { ENV, resolveLiveKitServerUrl } from '../config/env';
 import { getInitials, getAvatarTextStyle } from '../utils/helpers';
 import { styles } from './home/homeScreenStyles';
 import { ScheduledMeetingCard } from './home/ScheduledMeetingCard';
@@ -360,7 +360,7 @@ export const HomeScreen: React.FC = () => {
       const meetingData = data.meeting || data;
       const roomName = meetingData.room_name || data.room_name || '';
       const token = data.livekit_token || data.token || '';
-      const serverUrl = data.livekit_url || ENV.LIVEKIT_WS_URL;
+      const serverUrl = resolveLiveKitServerUrl(data.livekit_url) || ENV.LIVEKIT_WS_URL;
       const code = meetingData.meeting_code || personalRoomCode;
 
       if (!roomName || !token) {
@@ -403,7 +403,7 @@ export const HomeScreen: React.FC = () => {
       startMeeting({
         roomName: createdRoomData.meeting.room_name,
         token: createdRoomData.token,
-        serverUrl: createdRoomData.livekit_url,
+        serverUrl: resolveLiveKitServerUrl(createdRoomData.livekit_url),
         displayName: user?.name || currentUser?.name || 'IA',
         meetingCode: code,
         meetingTitle: createdRoomData.meeting.title || createdRoomData.meeting.meeting_code,

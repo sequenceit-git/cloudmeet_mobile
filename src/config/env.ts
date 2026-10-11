@@ -8,14 +8,14 @@ export const ENV = {
   API_BASE_URL:
     process.env.EXPO_PUBLIC_API_BASE_URL ||
     (IS_PRODUCTION
-      ? 'https://api.cloudnewsmeet.com/api/v1'
-      : 'http://192.168.0.103:8001/api/v1'),
+      ? 'https://cloudnewsmeet.com/api/v1'
+      : 'http://192.168.50.93:8001/api/v1'),
 
   LIVEKIT_WS_URL:
     process.env.EXPO_PUBLIC_LIVEKIT_WS_URL ||
     (IS_PRODUCTION
       ? 'wss://livekit.cloudnewsmeet.com'
-      : 'ws://192.168.0.103:7880'),
+      : 'ws://192.168.50.93:7880'),
 
   INVITE_WEB_URL:
     process.env.EXPO_PUBLIC_INVITE_WEB_URL || 'https://cloudnewsmeet.com',
@@ -33,7 +33,10 @@ export function resolveLiveKitServerUrl(rawUrl?: string): string {
     rawUrl.includes('localhost') ||
     rawUrl.includes('127.0.0.1') ||
     rawUrl.includes('10.0.2.2') ||
-    rawUrl.includes('0.0.0.0')
+    rawUrl.includes('0.0.0.0') ||
+    rawUrl.includes('//livekit:') ||
+    rawUrl.includes('//livekit/') ||
+    rawUrl.includes('//livekit')
   ) {
     return ENV.LIVEKIT_WS_URL;
   }
