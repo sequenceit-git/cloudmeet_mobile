@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "云讯",
-    "slug": "cloudnews-mobile",
+    "slug": "cloudnewsmeet",
     "scheme": "cloudnews",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -83,9 +83,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "a86d1f69-d766-42c0-a692-7d45ef74d6c8"
+        "projectId": "c72a3dc6-2192-48f2-b648-3251da00082a"
       }
     },
-    "owner": "imtiaz.cnits"
+    "owner": "sequenceitbd"
   }
 }
